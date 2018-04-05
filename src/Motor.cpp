@@ -69,16 +69,23 @@ float Motor::getPower()
 
 void Motor::setPower(float const a_val)
 {
-  float val{a_val + m_offset};
   if(m_type ==  MotorType::Esc) {
-    val = a_val / 2.0f + m_offset;
+    float val = a_val;
+    if (val < (- m_maxval * 2.0f) + m_offset) {
+      val = (- m_maxval * 2.0f) + m_offset;
+    } else if (val > m_maxval + m_offset) {
+      val = m_maxval + m_offset;
+    }
+    m_power = val;
+  } else {
+    float val{a_val + m_offset};
+    if (val < -m_maxval + m_offset) {
+      val = -m_maxval + m_offset;
+    } else if (val > m_maxval + m_offset) {
+      val = m_maxval + m_offset;
+    }
+    m_power = val;
   }
-  if (val < -m_maxval + m_offset) {
-    val = -m_maxval + m_offset;
-  } else if (val > m_maxval + m_offset) {
-    val = m_maxval + m_offset;
-  }
-  m_power = val;
 }
 
 std::string Motor::toString() 

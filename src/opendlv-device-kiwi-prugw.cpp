@@ -43,24 +43,25 @@ int32_t main(int32_t argc, char **argv) {
     if (VERBOSE) {
       VERBOSE = std::stoi(commandlineArguments["verbose"]);
     }
+    float const FREQ = 50;
 
     std::vector<std::string> names = stringtoolbox::split(commandlineArguments["names"],',');
     std::vector<std::string> types = stringtoolbox::split(commandlineArguments["types"],',');
     std::vector<std::string> channels = stringtoolbox::split(commandlineArguments["channels"],',');
-    std::vector<std::string> offets = stringtoolbox::split(commandlineArguments["offsets"],',');
+    std::vector<std::string> offsets = stringtoolbox::split(commandlineArguments["offsets"],',');
     std::vector<std::string> maxvals = stringtoolbox::split(commandlineArguments["maxvals"],',');
     float const angleConversion = std::stof(commandlineArguments["angleconversion"]);
 
     if (names.size() != types.size() ||
         names.size() != types.size() ||
         names.size() != channels.size() ||
-        names.size() != offets.size() ||
+        names.size() != offsets.size() ||
         names.size() != maxvals.size()) {
       std::cerr << "Number of arguments do not match, use ',' as delimiter." << std::endl;
       retCode = 1;
     }
 
-    PwmMotors pwmMotors(names, types, channels, offets, maxvals);
+    PwmMotors pwmMotors(names, types, channels, offsets, maxvals);
     pwmMotors.powerServoRail(true);
 
     cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"])),
@@ -85,28 +86,24 @@ int32_t main(int32_t argc, char **argv) {
     if (VERBOSE == 2) {
       initscr();
     }
-    auto start = std::chrono::steady_clock::now();
-    auto end = std::chrono::steady_clock::now();
-    std::chrono::duration<double> diff = end-start;
 
-    while (od4.isRunning()) {
-      diff = end-start;
+    auto atFrequency{[&pwmMotors, &VERBOSE]() -> bool
+    {
       // This must be called regularly (>40hz) to keep servos or ESCs awake.
-      std::this_thread::sleep_for(std::chrono::duration<double>(1.0 / 50.0f) - diff);
-      start = std::chrono::steady_clock::now();
       pwmMotors.actuate();
       if (VERBOSE == 1) {
         std::cout << pwmMotors.toString() << std::endl;
       }
       if (VERBOSE == 2) {
         mvprintw(1,1,(pwmMotors.toString()).c_str()); 
-        mvprintw(10,1, ("Run clock seconds: " + std::to_string(diff.count())).c_str());
         refresh();      /* Print it on to the real screen */
       }
-      end = std::chrono::steady_clock::now();
+      return true;
+    }};
+        
 
-    }
-    pwmMotors.powerServoRail(false);
+    od4.timeTrigger(FREQ, atFrequency);
+
     if (VERBOSE == 2) {
       endwin();     /* End curses mode      */
     }
