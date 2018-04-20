@@ -31,7 +31,7 @@ RUN apk update && \
         ncurses-dev \
         make
 
-# RUN apk add libcluon --no-cache --repository https://chrberger.github.io/libcluon/alpine/v3.7 --allow-untrusted
+RUN apk add libcluon --no-cache --repository https://chrberger.github.io/libcluon/alpine/v3.7 --allow-untrusted
 
 ADD . /opt/sources
 
