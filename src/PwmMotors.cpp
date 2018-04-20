@@ -27,6 +27,8 @@
 #include <sys/mman.h> // mmap
 #include <cstring> // for memset
 
+#include <sys/stat.h> // checking if file/dir exist
+
 #include "PwmMotors.h"
 
 
@@ -124,9 +126,8 @@ void PwmMotors::initialisePru()
 
 PwmMotors::~PwmMotors() 
 {
-  // std::cout << " Turning off servo power rail.\n";
-  powerServoRail(false);
   setServoNormalizedAll(0);
+  powerServoRail(false);
   m_prusharedMemInt32_ptr = NULL;
 }
 
@@ -167,20 +168,34 @@ void PwmMotors::actuate()
   }
 }
 
-void PwmMotors::powerServoRail(bool const a_val)
+void PwmMotors::powerServoRail(bool const &a_val)
 {
-  std::string gpioValueFilename = "/sys/class/gpio/gpio80/value";
-
-  std::ofstream gpioValueFile(gpioValueFilename, std::ofstream::out);
-  if (gpioValueFile.is_open()) {
-    gpioValueFile << static_cast<uint16_t>(a_val);
-    gpioValueFile.flush();
+  if (a_val){
+    struct stat sb;
+    if (stat("/sys/class/gpio/gpio80", &sb) != 0 && S_ISDIR(sb.st_mode) && a_val) {
+      write2file("/sys/class/gpio/export", "80");
+    }
+    write2file("/sys/class/gpio/gpio80/direction", "out");
+    write2file("/sys/class/gpio/gpio80/value", "1");
   } else {
-    std::cerr << " Could not open " << gpioValueFilename 
-        << "." << std::endl;
+    write2file("/sys/class/gpio/gpio80/value", "0");
+    write2file("/sys/class/gpio/gpio80/direction", "in");
+    write2file("/sys/class/gpio/unexport", "80");
   }
-  gpioValueFile.close();
-} 
+}
+
+void PwmMotors::write2file(std::string const &a_path, std::string const &a_str)
+{
+  std::ofstream file(a_path, std::ofstream::out);
+  if (file.is_open()) {
+      file << a_str;
+    } else {
+      std::cerr << " Could not open " << a_path 
+          << "." << std::endl;
+    }    
+    file.flush();
+    file.close();
+}
 
 int32_t PwmMotors::getPruEncoderPos()
 {

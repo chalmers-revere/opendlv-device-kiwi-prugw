@@ -36,7 +36,7 @@ class PwmMotors {
   std::string toString();
   void setMotorPower(uint8_t, float);
   void initialisePru();
-  void powerServoRail(bool);
+  void powerServoRail(bool const &);
 
  private:
   PwmMotors(const PwmMotors &) = delete;
@@ -44,6 +44,7 @@ class PwmMotors {
   PwmMotors &operator=(const PwmMotors &) = delete;
   PwmMotors &operator=(PwmMotors &&) = delete;
 
+  void write2file(std::string const &, std::string const &);
   int32_t getPruEncoderPos();
   int8_t setPruEncoderPos(int32_t );
   int8_t setPwmMicroSeconds(uint8_t const, uint32_t const );

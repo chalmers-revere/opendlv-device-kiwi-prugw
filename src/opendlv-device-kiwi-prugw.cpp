@@ -63,25 +63,29 @@ int32_t main(int32_t argc, char **argv) {
 
     PwmMotors pwmMotors(names, types, channels, offsets, maxvals);
     pwmMotors.powerServoRail(true);
+    
 
-    cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"])),
-      [&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope){
-        if (envelope.dataType() == opendlv::proxy::GroundSteeringRequest::ID()) {
-          opendlv::proxy::GroundSteeringRequest gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
-          float groundSteering = gst.groundSteering() / angleConversion;
-          pwmMotors.setMotorPower(1, groundSteering);
-        } else if (envelope.dataType() == opendlv::proxy::PedalPositionRequest::ID()) {
-          opendlv::proxy::PedalPositionRequest ppr = cluon::extractMessage<opendlv::proxy::PedalPositionRequest>(std::move(envelope));
-          float val = (ppr.position()+1)/2.0f;
-          if (val > 1.0f) {
-            val = 1.0f;
-          } else if (val < 0.1f){
-            val = 0.1f;
-          }
-          pwmMotors.setMotorPower(2, val);
-        }
+    auto onGroundSteeringRequest{[&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope)
+    {
+      auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
+      float const groundSteering = gst.groundSteering() / angleConversion;
+      pwmMotors.setMotorPower(1, groundSteering);
+    }};
+    auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope)
+    {
+      opendlv::proxy::PedalPositionRequest const ppr = cluon::extractMessage<opendlv::proxy::PedalPositionRequest>(std::move(envelope));
+      float val = (ppr.position()+1)/2.0f;
+      if (val > 1.0f) {
+        val = 1.0f;
+      } else if (val < 0.1f){
+        val = 0.1f;
       }
-    };
+      pwmMotors.setMotorPower(2, val);
+    }};
+
+    cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
+    od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
+    od4.dataTrigger(opendlv::proxy::PedalPositionRequest::ID(), onPedalPositionRequest);
 
     if (VERBOSE == 2) {
       initscr();
