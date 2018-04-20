@@ -31,20 +31,20 @@ TEST_CASE("Test servo motor") {
   std::string name = "servo";
   Motor::MotorType type = Motor::MotorType::Servo;
   uint8_t channel = 0;
-  float offset = 0;
-  float maxval = 1.5;
+  float offset = -0.12f;
+  float maxval = 1.5f;
   Motor servo(name, type, channel, offset, maxval);
   REQUIRE(Motor::MotorType::Servo == servo.getType());
   REQUIRE(channel == servo.getChannel());
-  REQUIRE(servo.getPower() == Approx(0.0f));
+  REQUIRE(servo.getPower() == Approx(-0.12f));
   servo.setPower(2.0f);
-  REQUIRE(servo.getPower()== Approx(1.5f));
+  REQUIRE(servo.getPower()== Approx(1.5f + offset));
   servo.setPower(-2.0f);
   REQUIRE(servo.getPower() == Approx(-1.5f));
   servo.setPower(-1.0f);
-  REQUIRE(servo.getPower() == Approx(-1.0f));
+  REQUIRE(servo.getPower() == Approx(-1.0f + offset));
   servo.setPower(1.0f);
-  REQUIRE(servo.getPower() == Approx(1.0f));
+  REQUIRE(servo.getPower() == Approx(1.0f + offset));
   
 }
 
