@@ -17,15 +17,20 @@
  */
 
 #include <algorithm>
+#include <chrono> //milliseconds
+#include <thread> //thread sleep
 #include <fstream>
 #include <sstream>
 #include <iostream>
 #include <math.h>
 
+
 #include <fcntl.h> // for open
 #include <unistd.h> // for close
 #include <sys/mman.h> // mmap
 #include <cstring> // for memset
+
+#include <sys/stat.h> // checking if file/dir exist
 
 #include "PwmMotors.h"
 
@@ -39,11 +44,17 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
   )
     : m_motors()
     , m_mutex()
-    , m_prusharedMemInt32_ptr(NULL)
+    , m_prusharedMemInt32_ptr{NULL}
+    , m_SERVO_PRU_CH{1} // PRU1
+    , m_SERVO_PRU_FW{"am335x-pru1-rc-servo-fw"} //"am335x-pru1-rc-servo-fw"
+    , m_PRU0_STATE{"/sys/class/remoteproc/remoteproc1/state"}
+    , m_PRU1_STATE{"/sys/class/remoteproc/remoteproc2/state"}
+    , m_PRU0_FW{"/sys/class/remoteproc/remoteproc1/firmware"}
+    , m_PRU1_FW{"/sys/class/remoteproc/remoteproc2/firmware"}
 {
 
   if (a_names.size() == a_channels.size() && a_names.size() == a_types.size()
-      && (signed) a_channels.size() <= SERVO_CHANNELS && a_channels.size() > 0 &&
+      && a_channels.size() <= NUM_SERVO_CHANNELS && a_channels.size() > 0 &&
       a_names.size() ==  a_offets.size() && a_names.size() == a_maxvals.size()) {
     for (uint8_t i = 0; i < a_names.size(); ++i) {
       std::string name = a_names.at(i);
@@ -73,65 +84,79 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
 
 void PwmMotors::initialisePru()
 {
-  int32_t  bindFileDescriptor;
-  uint32_t  *pru;   // Points to start of PRU memory.
   int32_t fileDescriptor;
+  terminatePru();
+  std::ofstream fileFirmware(m_PRU1_FW);
+  fileFirmware << m_SERVO_PRU_FW;
+  fileFirmware.flush();
+  fileFirmware.close();
+  volatile uint32_t  *pru;   // Points to start of PRU memory.
+  struct stat sb;
   
   // reset memory pointer to NULL so if init fails it doesn't point somewhere bad
   m_prusharedMemInt32_ptr = NULL;
 
-  // open file descriptors for pru rproc driver
-  bindFileDescriptor = open(PRU_BIND_PATH.c_str(), O_WRONLY);
-  if (bindFileDescriptor == -1) {
-    std::cerr << " ERROR: pru-rproc driver missing" << std::endl;
+  // check if firmware exists
+  if (stat(("/lib/firmware/" + m_SERVO_PRU_FW).c_str(), &sb) != 0 || !S_ISREG(sb.st_mode)) {
+    std::cerr << " ERROR: missing am335x pru firmware" << std::endl;
   }
 
-  // if pru0 is not loaded, load it
-  if (access(PRU0_UEVENT.c_str(), F_OK) != 0) {
-    if (write(bindFileDescriptor, PRU0_NAME.c_str(), PRU_NAME_LEN) < 0) {
-      std::cerr << " ERROR: pru0 bind failed\n" << std::endl;
-    }
+  std::ofstream fileState(m_PRU1_STATE);
+  fileState << "start";
+  fileState.flush();
+  fileState.close();
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+  std::ifstream fileStatus(m_PRU1_STATE);
+  std::string strStatus;
+  std::getline(fileStatus, strStatus);
+  if(!strStatus.compare("running\n")) {
+    std::cerr << " ERROR code: " << strStatus << std::endl;  
   }
-  // if pru1 is not loaded, load it
-  if(access(PRU1_UEVENT.c_str(), F_OK)!=0){
-    if(write(bindFileDescriptor, PRU1_NAME.c_str(), PRU_NAME_LEN)<0){
-      std::cerr << " ERROR: pru1 bind failed\n" << std::endl;
-    }
-  }
-  close(bindFileDescriptor);
 
   // start mmaping shared memory
   fileDescriptor = open("/dev/mem", O_RDWR | O_SYNC);
   if (fileDescriptor == -1) {
     std::cerr << " ERROR: could not open /dev/mem." << std::endl;
   }
-  std::cout << " mmap'ing PRU shared memory" << std::endl;
   
-  pru = static_cast<unsigned int*>(mmap(0, PRU_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, PRU_ADDR));
+  pru = static_cast<volatile uint32_t*>(mmap(0, PRU_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, PRU_ADDR));
   if (pru == MAP_FAILED) {
     std::cerr << " ERROR: could not map memory." << std::endl;
   }
   close(fileDescriptor);
 
-  m_prusharedMemInt32_ptr = pru + PRU_SHAREDMEM/4; // Points to start of shared memory
+  m_prusharedMemInt32_ptr = pru + PRU_SHAREDMEM / 4; // Points to start of shared memory
+  if (m_prusharedMemInt32_ptr == NULL) {
+    std::cerr << " ERROR: pru shared mem is null." << std::endl;
+  }
 
-  // zero out the 8 servo channels and encoder channel
-  std::memset(m_prusharedMemInt32_ptr, 0, 9*4);
+  std::cout << "Successfully initialized servo/esc PRU" << std::endl;
+  // std::memset(m_prusharedMemInt32_ptr, 0, SERVO_CHANNELS * 4);
+  for (uint8_t i = 8; i < NUM_SERVO_CHANNELS; i++) {
+    m_prusharedMemInt32_ptr[i] = 0;
+  }
+}
 
-  // zero out 4th encoder, eQEP encoders are already zero'd previously
-  setPruEncoderPos(0);
+void PwmMotors::terminatePru()
+{
+  std::ofstream file(m_PRU1_STATE);
+  file << "stop";
+  file.flush();
+  file.close();
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 }
 
 PwmMotors::~PwmMotors() 
 {
-  // std::cout << " Turning off servo power rail.\n";
-  powerServoRail(false);
   setServoNormalizedAll(0);
+  terminatePru();
+  powerServoRail(false);
   m_prusharedMemInt32_ptr = NULL;
 }
 
 
-void PwmMotors::setMotorPower(uint8_t a_ch, float a_power) {
+void PwmMotors::setMotorPower(uint8_t const &a_ch, float const &a_power) {
   for (uint8_t i = 0; i < m_motors.size(); ++i) {
     if (m_motors.at(i).getChannel() == a_ch) {
       std::lock_guard<std::mutex> l(m_mutex);
@@ -167,53 +192,45 @@ void PwmMotors::actuate()
   }
 }
 
-void PwmMotors::powerServoRail(bool const a_val)
+void PwmMotors::powerServoRail(bool const &a_val)
 {
-  std::string gpioValueFilename = "/sys/class/gpio/gpio80/value";
-
-  std::ofstream gpioValueFile(gpioValueFilename, std::ofstream::out);
-  if (gpioValueFile.is_open()) {
-    gpioValueFile << static_cast<uint16_t>(a_val);
-    gpioValueFile.flush();
+  if (a_val){
+    struct stat sb;
+    if (stat("/sys/class/gpio/gpio80", &sb) != 0) {
+      write2file("/sys/class/gpio/export", "80");
+    }
+    write2file("/sys/class/gpio/gpio80/direction", "out");
+    write2file("/sys/class/gpio/gpio80/value", "1");
   } else {
-    std::cerr << " Could not open " << gpioValueFilename 
+    write2file("/sys/class/gpio/gpio80/value", "0");
+    write2file("/sys/class/gpio/gpio80/direction", "in");
+    write2file("/sys/class/gpio/unexport", "80");
+  }
+}
+
+void PwmMotors::write2file(std::string const &a_path, std::string const &a_str)
+{
+  std::ofstream file(a_path, std::ofstream::out);
+  if (file.is_open()) {
+    file << a_str;
+  } else {
+    std::cerr << " Could not open " << a_path 
         << "." << std::endl;
-  }
-  gpioValueFile.close();
-} 
-
-int32_t PwmMotors::getPruEncoderPos()
-{
-  if (m_prusharedMemInt32_ptr == NULL) {
-    return -1;
-  } else {
-    return static_cast<int32_t>(m_prusharedMemInt32_ptr[CNT_OFFSET/4]);
-  }
+  }    
+  file.flush();
+  file.close();
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
-/*******************************************************************************
-* int set_pru_encoder_pos(int val)
-* 
-* Set the encoder position, return 0 on success, -1 on failure.
-*******************************************************************************/
-int8_t PwmMotors::setPruEncoderPos(int32_t val)
-{
-  if (m_prusharedMemInt32_ptr == NULL) {
-    return -1;
-  } else {
-    m_prusharedMemInt32_ptr[CNT_OFFSET/4] = val;
-    return 0;
-  }
-}
 /*******************************************************************************
 * Sends a single pulse of duration us (microseconds) to a channels.
 * This must be called regularly (>40hz) to keep servos or ESCs awake.
 *******************************************************************************/
-int8_t PwmMotors::setPwmMicroSeconds(uint8_t const a_ch, uint32_t const a_us)
+int8_t PwmMotors::setPwmMicroSeconds(uint8_t const &a_ch, uint32_t const &a_us)
 {
   // Sanity Checks
-  if(a_ch < 1 || a_ch > SERVO_CHANNELS){
-    std::cout << " ERROR: Channel must be between 1 and " << SERVO_CHANNELS << ". \n";
+  if(a_ch < 1 || a_ch > NUM_SERVO_CHANNELS){
+    std::cout << " ERROR: Channel must be between 1 and " << NUM_SERVO_CHANNELS << ". \n";
     return -2;
   } if(m_prusharedMemInt32_ptr == NULL){
     std::cout << " ERROR: PRU servo Controller not initialized.\n";
@@ -227,7 +244,7 @@ int8_t PwmMotors::setPwmMicroSeconds(uint8_t const a_ch, uint32_t const a_us)
   }
 
   // PRU runs at 200Mhz. find #loops needed
-  uint32_t numLoops = static_cast<uint32_t>((a_us * 200.0f) / PRU_SERVO_LOOP_INSTRUCTIONS); 
+  uint32_t numLoops = (a_us * 200) / PRU_SERVO_LOOP_INSTRUCTIONS;
   // write to PRU shared memory
   m_prusharedMemInt32_ptr[a_ch-1] = numLoops;
   return 0;
@@ -237,10 +254,10 @@ int8_t PwmMotors::setPwmMicroSeconds(uint8_t const a_ch, uint32_t const a_us)
 * Sends a single pulse of duration us (microseconds) to all channels.
 * This must be called regularly (>40hz) to keep servos or ESCs awake.
 *******************************************************************************/
-int8_t PwmMotors::setPwmMicroSecondsAll(uint32_t const a_us)
+int8_t PwmMotors::setPwmMicroSecondsAll(uint32_t const &a_us)
 {
   int ret = 0;
-  for (uint8_t i = 1; i <= SERVO_CHANNELS; i++) {
+  for (uint8_t i = 1; i <= NUM_SERVO_CHANNELS; i++) {
     int8_t retCh = setPwmMicroSeconds(i, a_us);
     if (retCh == -2) {
       return -2;
@@ -251,10 +268,10 @@ int8_t PwmMotors::setPwmMicroSecondsAll(uint32_t const a_us)
   return ret;
 }
 
-int8_t PwmMotors::setServoNormalized(uint8_t const a_ch, float const a_input)
+int8_t PwmMotors::setServoNormalized(uint8_t const &a_ch, float const &a_input)
 {
-  if (a_ch < 1 || a_ch > SERVO_CHANNELS) {
-    std::cout << " ERROR: Channel must be between 1 and " << SERVO_CHANNELS << ". \n";
+  if (a_ch < 1 || a_ch > NUM_SERVO_CHANNELS) {
+    std::cout << " ERROR: Channel must be between 1 and " << NUM_SERVO_CHANNELS << ". \n";
     return -1;
   }
   if (a_input < -1.5f || a_input > 1.5f) {
@@ -265,10 +282,10 @@ int8_t PwmMotors::setServoNormalized(uint8_t const a_ch, float const a_input)
   return setPwmMicroSeconds(a_ch, us);
 }
 
-int8_t PwmMotors::setServoNormalizedAll(float const a_input)
+int8_t PwmMotors::setServoNormalizedAll(float const &a_input)
 {
   int ret = 0;
-  for (uint8_t i = 1; i <= SERVO_CHANNELS; i++) {
+  for (uint8_t i = 1; i <= NUM_SERVO_CHANNELS; i++) {
     int8_t retCh = setServoNormalized(i, a_input);
     if (retCh == -2) {
       return -2;
@@ -283,10 +300,10 @@ int8_t PwmMotors::setServoNormalizedAll(float const a_input)
 * normalized input of 0-1 corresponds to output pulse from 1000-2000 us
 * input is allowed to go down to -0.1 so ESC can be armed below minimum throttle
 *******************************************************************************/
-int8_t PwmMotors::setEscNormalized(uint8_t const a_ch, float const a_input)
+int8_t PwmMotors::setEscNormalized(uint8_t const &a_ch, float const &a_input)
 {
-  if (a_ch < 1 || a_ch > SERVO_CHANNELS){
-    std::cout << " ERROR: Channel must be between 1 and " << SERVO_CHANNELS << ". \n";
+  if (a_ch < 1 || a_ch > NUM_SERVO_CHANNELS){
+    std::cout << " ERROR: Channel must be between 1 and " << NUM_SERVO_CHANNELS << ". \n";
     return -1;
   }
   if (a_input < -0.1f || a_input > 1.0f){
@@ -297,10 +314,10 @@ int8_t PwmMotors::setEscNormalized(uint8_t const a_ch, float const a_input)
   return setPwmMicroSeconds(a_ch, micros);
 }
 
-int8_t PwmMotors::setEscNormalizedAll(float const a_input)
+int8_t PwmMotors::setEscNormalizedAll(float const &a_input)
 {
   int ret = 0;
-  for (uint8_t i = 1; i <= SERVO_CHANNELS; i++) {
+  for (uint8_t i = 1; i <= NUM_SERVO_CHANNELS; i++) {
     int8_t retCh = setEscNormalized(i, a_input);
     if (retCh == -2) {
       return -2;
@@ -318,10 +335,10 @@ int8_t PwmMotors::setEscNormalizedAll(float const a_input)
 * normalized input of 0-1 corresponds to output pulse from 125-250 us
 * input is allowed to go down to -0.1 so ESC can be armed below minimum throttle
 *******************************************************************************/
-int8_t PwmMotors::setEscOneshotNormalized(uint8_t const a_ch, float const a_input)
+int8_t PwmMotors::setEscOneshotNormalized(uint8_t const &a_ch, float const &a_input)
 {
-  if (a_ch < 1 || a_ch > SERVO_CHANNELS) {
-    std::cout << " ERROR: Channel must be between 1 and " << SERVO_CHANNELS << ". \n";
+  if (a_ch < 1 || a_ch > NUM_SERVO_CHANNELS) {
+    std::cout << " ERROR: Channel must be between 1 and " << NUM_SERVO_CHANNELS << ". \n";
     return -1;
   }
   if(a_input < -0.1f || a_input > 1.0f) {
@@ -337,10 +354,10 @@ int8_t PwmMotors::setEscOneshotNormalized(uint8_t const a_ch, float const a_inpu
 * 
 * 
 *******************************************************************************/
-int8_t PwmMotors::setEscOneshotNormalizedAll(float const a_input)
+int8_t PwmMotors::setEscOneshotNormalizedAll(float const &a_input)
 {
   int ret = 0;
-  for (uint8_t i = 1; i <= SERVO_CHANNELS; i++) {
+  for (uint8_t i = 1; i <= NUM_SERVO_CHANNELS; i++) {
     int8_t retCh = setEscOneshotNormalized(i, a_input);
     if (retCh == -2) {
       return -2;

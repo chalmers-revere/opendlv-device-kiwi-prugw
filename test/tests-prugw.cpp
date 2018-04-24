@@ -31,16 +31,21 @@ TEST_CASE("Test servo motor") {
   std::string name = "servo";
   Motor::MotorType type = Motor::MotorType::Servo;
   uint8_t channel = 0;
-  float offset = 0;
-  float maxval = 1.5;
+  float offset = -0.12f;
+  float maxval = 1.5f;
   Motor servo(name, type, channel, offset, maxval);
   REQUIRE(Motor::MotorType::Servo == servo.getType());
   REQUIRE(channel == servo.getChannel());
-  REQUIRE(std::abs(0.0f - servo.getPower()) < 0.00001f) ;
+  REQUIRE(servo.getPower() == Approx(-0.12f));
   servo.setPower(2.0f);
-  REQUIRE(std::abs(1.5f - servo.getPower()) < 0.00001f);
+  REQUIRE(servo.getPower()== Approx(1.5f + offset));
   servo.setPower(-2.0f);
-  REQUIRE(std::abs(-1.5f - servo.getPower()) < 0.00001f);
+  REQUIRE(servo.getPower() == Approx(-1.5f));
+  servo.setPower(-1.0f);
+  REQUIRE(servo.getPower() == Approx(-1.0f + offset));
+  servo.setPower(1.0f);
+  REQUIRE(servo.getPower() == Approx(1.0f + offset));
+  
 }
 
 
@@ -53,11 +58,15 @@ TEST_CASE("Test esc motor") {
   Motor esc(name, type, channel, offset, maxval);
   REQUIRE(Motor::MotorType::Esc == esc.getType());
   REQUIRE(channel == esc.getChannel());
-  REQUIRE(std::abs(0.5f - esc.getPower()) < 0.00001f) ;
+  REQUIRE(esc.getPower() == Approx(0.5f)) ;
   esc.setPower(2.0f);
-  REQUIRE(std::abs(1.0f - esc.getPower()) < 0.00001f);
+  REQUIRE(esc.getPower() == Approx(1.0f));
   esc.setPower(-2.0f);
-  std::cout << esc.getPower() << std::endl;
-  REQUIRE(std::abs(0.0f - esc.getPower()) < 0.00001f);
+  REQUIRE(esc.getPower() == Approx(0.0f));
+  esc.setPower(0.2f);
+  REQUIRE(esc.getPower() == Approx(0.2f));
+  esc.setPower(0.8f);
+  REQUIRE(esc.getPower() == Approx(0.8f));
+
 }
 

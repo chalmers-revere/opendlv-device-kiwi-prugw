@@ -30,10 +30,10 @@ Motor::Motor(std::string const a_name, MotorType const a_type,
 {
   switch (m_type) {
     case MotorType::Esc :
-      m_power = 0.5f;
+      setPower(0.5);
       break;
     case MotorType::Servo :
-      m_power = 0.0f;
+      setPower(0);
       break;
     default:
       break;
@@ -59,10 +59,24 @@ uint8_t Motor::getChannel()
 
 float Motor::getPower()
 {
-  if (m_power > 1.5f) {
-    return 1.4999f;
-  } else if (m_power < -1.5f) {
-    return -1.4999f;
+
+  switch (m_type) {
+    case MotorType::Esc :
+      if (m_power > 1.0f) {
+        return 1.0f;
+      } else if (m_power < 0) {
+        return 0.0f;
+      }
+      break;
+    case MotorType::Servo :
+      if (m_power > 1.5f) {
+        return 1.499999f;
+      } else if (m_power < -1.5f) {
+        return -1.499999f;
+      }
+      break;
+    default:
+      break;
   }
   return m_power;
 }
