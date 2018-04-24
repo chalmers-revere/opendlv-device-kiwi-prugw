@@ -24,6 +24,7 @@
 #include <iostream>
 #include <math.h>
 
+
 #include <fcntl.h> // for open
 #include <unistd.h> // for close
 #include <sys/mman.h> // mmap
@@ -83,13 +84,14 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
 
 void PwmMotors::initialisePru()
 {
-  terminatePru();
-  volatile uint32_t  *pru;   // Points to start of PRU memory.
   int32_t fileDescriptor;
-  int32_t status;
+  terminatePru();
+  std::ofstream fileFirmware(m_PRU0_FW);
+  fileFirmware << m_SERVO_PRU_FW;
+  fileFirmware.flush();
+  fileFirmware.close();
+  volatile uint32_t  *pru;   // Points to start of PRU memory.
   struct stat sb;
-  char buffer[64];
-  memset(buffer, 0, sizeof(buffer));
   
   // reset memory pointer to NULL so if init fails it doesn't point somewhere bad
   m_prusharedMemInt32_ptr = NULL;
@@ -98,23 +100,19 @@ void PwmMotors::initialisePru()
   if (stat(("/lib/firmware/" + m_SERVO_PRU_FW).c_str(), &sb) != 0 || !S_ISREG(sb.st_mode)) {
     std::cerr << " ERROR: missing am335x pru firmware" << std::endl;
   }
-  fileDescriptor = open(m_PRU0_STATE.c_str(), O_WRONLY);
-  if (fileDescriptor == -1) {
-    std::cerr << " ERROR: could not open " << m_PRU0_STATE << std::endl;
-  }
-  status = write(fileDescriptor, "start", 5);
-  if (status == -1) {
-    std::cerr << " ERROR: could not start " << m_PRU0_STATE << std::endl;  
-  }
+
+  std::ofstream fileState(m_PRU0_STATE);
+  fileState << "start";
+  fileState.flush();
+  fileState.close();
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  status = read(fileDescriptor, buffer, sizeof(buffer));
-  if (status == -1) {
-    std::cerr << " ERROR: could not read " << m_PRU0_STATE << std::endl;  
-  } else if (!strcmp(buffer, "running\n")) {
-    std::cerr << " ERROR: could not initialise Pru " << m_PRU0_STATE << std::endl;  
+
+  std::ifstream fileStatus(m_PRU0_STATE);
+  std::string strStatus;
+  std::getline(fileStatus, strStatus);
+  if(!strStatus.compare("running\n")) {
+    std::cerr << " ERROR code: " << strStatus << std::endl;  
   }
-  close(fileDescriptor);
-  memset(buffer, 0, sizeof(buffer));
 
   // start mmaping shared memory
   fileDescriptor = open("/dev/mem", O_RDWR | O_SYNC);
@@ -142,30 +140,11 @@ void PwmMotors::initialisePru()
 
 void PwmMotors::terminatePru()
 {
-  int32_t fileDescriptor;
-  int32_t status;
-  char buffer[64];
-  memset(buffer, 0, sizeof(buffer));
-  fileDescriptor = open(m_PRU0_STATE.c_str(), O_WRONLY);
-  if (fileDescriptor == -1) {
-    std::cerr << " ERROR: could not open " << m_PRU0_STATE << std::endl;
-  }
-  status = read(fileDescriptor, buffer, sizeof(buffer));
-  if (status == -1) {
-    std::cerr << " ERROR: could not read " << m_PRU0_STATE << std::endl;  
-  } else if (strcmp(buffer, "running\n")) {
-    status = write(fileDescriptor, "stop", 4);
-    if (status == -1) {
-      std::cerr << " ERROR: could not stop " << m_PRU0_STATE << std::endl;  
-    }
-  }
+  std::ofstream file(m_PRU0_STATE);
+  file << "stop";
+  file.flush();
+  file.close();
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-  status = read(fileDescriptor, buffer, sizeof(buffer));
-  if (status == -1) {
-    std::cerr << " ERROR: could not read " << m_PRU0_STATE << std::endl;  
-  } else if (!strcmp(buffer, "offline\n")) {
-    std::cerr << " ERROR: could not terminate " << m_PRU0_STATE << std::endl;  
-  }
 }
 
 PwmMotors::~PwmMotors() 
