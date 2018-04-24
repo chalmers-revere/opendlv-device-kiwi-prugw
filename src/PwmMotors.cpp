@@ -196,7 +196,7 @@ void PwmMotors::powerServoRail(bool const &a_val)
 {
   if (a_val){
     struct stat sb;
-    if (stat("/sys/class/gpio/gpio80", &sb) != 0 && S_ISDIR(sb.st_mode) && a_val) {
+    if (stat("/sys/class/gpio/gpio80", &sb) != 0) {
       write2file("/sys/class/gpio/export", "80");
     }
     write2file("/sys/class/gpio/gpio80/direction", "out");
@@ -212,13 +212,14 @@ void PwmMotors::write2file(std::string const &a_path, std::string const &a_str)
 {
   std::ofstream file(a_path, std::ofstream::out);
   if (file.is_open()) {
-      file << a_str;
-    } else {
-      std::cerr << " Could not open " << a_path 
-          << "." << std::endl;
-    }    
-    file.flush();
-    file.close();
+    file << a_str;
+  } else {
+    std::cerr << " Could not open " << a_path 
+        << "." << std::endl;
+  }    
+  file.flush();
+  file.close();
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 /*******************************************************************************
