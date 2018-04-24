@@ -1,6 +1,6 @@
 // This is an auto-generated header-only single-file distribution of libcluon.
-// Date: Tue, 17 Apr 2018 23:02:52 +0200
-// Version: 0.0.73
+// Date: Tue, 24 Apr 2018 06:24:24 +0200
+// Version: 0.0.75
 //
 //
 // Implementation of N4562 std::experimental::any (merged into C++17) for C++11 compilers.
@@ -7973,6 +7973,118 @@ class LIBCLUON_API Player {
 }
 
 #endif
+/*
+ * Copyright (C) 2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef CLUON_SHAREDMEMORY_HPP
+#define CLUON_SHAREDMEMORY_HPP
+
+//#include "cluon/cluon.hpp"
+
+// clang-format off
+#ifndef WIN32
+    #include <pthread.h>
+#endif
+// clang-format on
+
+#include <cstddef>
+#include <cstdint>
+#include <string>
+
+namespace cluon {
+
+class LIBCLUON_API SharedMemory {
+   private:
+    SharedMemory(const SharedMemory &) = delete;
+    SharedMemory(SharedMemory &&)      = delete;
+    SharedMemory &operator=(const SharedMemory &) = delete;
+    SharedMemory &operator=(SharedMemory &&) = delete;
+
+   public:
+    /**
+     * Constructor.
+     *
+     * @param name Name of the shared memory area; must start with / and must not be longer than NAME_MAX (255). If the name is missing a leading '/' or is
+     * longer than 255, it will be adjusted accordingly.
+     * @param size of the shared memory area to create; if size is 0, the class tries to attach to an existing area.
+     */
+    SharedMemory(const std::string &name, uint32_t size = 0) noexcept;
+    ~SharedMemory() noexcept;
+
+    /**
+     * This method locks the shared memory area.
+     */
+    void lock() noexcept;
+
+    /**
+     * This method unlocks the shared memory area.
+     */
+    void unlock() noexcept;
+
+    /**
+     * This method waits for being notified from the shared condition.
+     */
+    void wait() noexcept;
+
+    /**
+     * This method notifies all threads waiting on the shared condition.
+     */
+    void notifyAll() noexcept;
+
+    /**
+     * @return Pointer to the raw shared memory or nullptr in case of invalid shared memory.
+     */
+    char *data() noexcept;
+
+    /**
+     * @return The size of the shared memory area.
+     */
+    uint32_t size() const noexcept;
+
+    /**
+     * @return Name the shared memory area.
+     */
+    const std::string name() const noexcept;
+
+    /**
+     * @return True if the shared memory area is existing and usable.
+     */
+    bool valid() noexcept;
+
+   private:
+    int32_t m_fd{-1};
+    std::string m_name{""};
+    uint32_t m_size{0};
+    char *m_sharedMemory{nullptr};
+    char *m_userAccessibleSharedMemory{nullptr};
+    bool m_hasOnlyAttachedToSharedMemory{false};
+
+#ifndef WIN32
+    struct SharedMemoryHeader {
+        uint32_t __size;
+        pthread_mutex_t __mutex;
+        pthread_cond_t __condition;
+    };
+    SharedMemoryHeader *m_sharedMemoryHeader{nullptr};
+#endif
+};
+} // namespace cluon
+
+#endif
 
 /*
  * THIS IS AN AUTO-GENERATED FILE. DO NOT MODIFY AS CHANGES MIGHT BE OVERWRITTEN!
@@ -8892,7 +9004,7 @@ inline UDPReceiver::UDPReceiver(const std::string &receiveFromAddress,
             u_long nonBlocking = 1;
             m_isBlockingSocket = !(NO_ERROR == ::ioctlsocket(m_socket, FIONBIO, &nonBlocking));
 #else
-            const int FLAGS = ::fcntl(m_socket, F_GETFL, 0);
+            const int FLAGS    = ::fcntl(m_socket, F_GETFL, 0);
             m_isBlockingSocket = !(0 == ::fcntl(m_socket, F_SETFL, FLAGS | O_NONBLOCK));
 #endif
         }
@@ -8903,7 +9015,7 @@ inline UDPReceiver::UDPReceiver(const std::string &receiveFromAddress,
             u_long nonBlocking = 1;
             m_isBlockingSocket = !(NO_ERROR == ::ioctlsocket(m_socket, FIONBIO, &nonBlocking));
 #else
-            const int FLAGS = ::fcntl(m_socket, F_GETFL, 0);
+            const int FLAGS    = ::fcntl(m_socket, F_GETFL, 0);
             m_isBlockingSocket = !(0 == ::fcntl(m_socket, F_SETFL, FLAGS | O_NONBLOCK));
 #endif
         }
@@ -8917,7 +9029,7 @@ inline UDPReceiver::UDPReceiver(const std::string &receiveFromAddress,
                 auto errorCode = WSAGetLastError();
 #else
                 auto errorCode = errno; // LCOV_EXCL_LINE
-#endif                                  // LCOV_EXCL_LINE
+#endif                                                                                                                                       // LCOV_EXCL_LINE
                 std::cerr << "[cluon::UDPReceiver] Error while trying to set SO_RCVBUF to " << recvBuffer << ": " << errorCode << std::endl; // LCOV_EXCL_LINE
             }
         }
@@ -9050,7 +9162,7 @@ inline void UDPReceiver::processPipeline() noexcept {
     while (m_pipelineThreadRunning.load()) {
         std::unique_lock<std::mutex> lck(m_pipelineMutex);
         // Wait until the thread should stop or data is available.
-        m_pipelineCondition.wait(lck, [this]{return (!this->m_pipelineThreadRunning.load() || !this->m_pipeline.empty());});
+        m_pipelineCondition.wait(lck, [this] { return (!this->m_pipelineThreadRunning.load() || !this->m_pipeline.empty()); });
 
         // The condition will automatically lock the mutex after waking up.
         // As we are locking per entry, we need to unlock the mutex first.
@@ -9094,8 +9206,6 @@ inline void UDPReceiver::readFromSocket() noexcept {
     struct timeval timeout {};
     timeout.tv_sec  = 1;
     timeout.tv_usec = 0;
-//    timeout.tv_sec  = 0;
-//    timeout.tv_usec = 20 * 1000; // Check for new data with 50Hz.
 
     // Define file descriptor set to watch for read operations.
     fd_set setOfFiledescriptorsToReadFrom{};
@@ -9153,8 +9263,8 @@ inline void UDPReceiver::readFromSocket() noexcept {
                     // Create a pipeline entry to be processed concurrently.
                     {
                         PipelineEntry pe;
-                        pe.m_data = std::string(buffer.data(), static_cast<size_t>(bytesRead));
-                        pe.m_from = std::string(remoteAddress.data()) + ':' + std::to_string(RECVFROM_PORT);
+                        pe.m_data       = std::string(buffer.data(), static_cast<size_t>(bytesRead));
+                        pe.m_from       = std::string(remoteAddress.data()) + ':' + std::to_string(RECVFROM_PORT);
                         pe.m_sampleTime = timestamp;
 
                         // Store entry in queue.
@@ -9172,7 +9282,7 @@ inline void UDPReceiver::readFromSocket() noexcept {
             std::this_thread::sleep_for(1ms);
         }
 
-        if (totalBytesRead > 0) {
+        if (static_cast<int32_t>(totalBytesRead) > 0) {
             m_pipelineCondition.notify_all();
         }
     }
@@ -12420,10 +12530,10 @@ inline OD4Session::OD4Session(uint16_t CID, std::function<void(cluon::data::Enve
     , m_delegate(std::move(delegate))
     , m_mapOfDataTriggeredDelegatesMutex{}
     , m_mapOfDataTriggeredDelegates{} {
-    m_receiver = std::make_unique<cluon::UDPReceiver>("225.0.0." + std::to_string(CID), 12175,
-                 [this](std::string &&data, std::string &&from, std::chrono::system_clock::time_point &&timepoint) {
-                     this->callback(std::move(data), std::move(from), std::move(timepoint));
-                 });
+    m_receiver = std::make_unique<cluon::UDPReceiver>(
+        "225.0.0." + std::to_string(CID), 12175, [this](std::string &&data, std::string &&from, std::chrono::system_clock::time_point &&timepoint) {
+            this->callback(std::move(data), std::move(from), std::move(timepoint));
+        });
 }
 
 inline void OD4Session::timeTrigger(float freq, std::function<bool()> delegate) noexcept {
@@ -12474,7 +12584,7 @@ inline bool OD4Session::dataTrigger(int32_t messageIdentifier, std::function<voi
     return retVal;
 }
 
-inline void OD4Session::callback(std::string &&data, std::string &&/*from*/, std::chrono::system_clock::time_point &&timepoint) noexcept {
+inline void OD4Session::callback(std::string &&data, std::string && /*from*/, std::chrono::system_clock::time_point &&timepoint) noexcept {
     std::stringstream sstr(data);
     auto retVal = extractEnvelope(sstr);
 
@@ -12779,7 +12889,9 @@ inline std::string EnvelopeConverter::getJSONFromEnvelope(cluon::data::Envelope 
     return retVal;
 }
 
+// clang-format off
 inline std::string EnvelopeConverter::getProtoEncodedEnvelopeFromJSONWithoutTimeStamps(const std::string &json, int32_t messageIdentifier, uint32_t senderStamp) noexcept {
+// clang-format on
     std::string retVal;
     if (0 < m_scopeOfMetaMessages.count(messageIdentifier)) {
         // Get specification for message to be created.
@@ -13273,6 +13385,251 @@ inline float Player::checkRefillingCache(const uint32_t &numberOfEntries, float 
 }
 
 }
+/*
+ * Copyright (C) 2017-2018  Christian Berger
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+//#include "cluon/SharedMemory.hpp"
+
+// clang-format off
+#ifndef WIN32
+    #include <fcntl.h>
+    #include <sys/mman.h>
+    #include <sys/stat.h>
+    #include <unistd.h>
+#endif
+// clang-format on
+
+#include <cstring>
+#include <iostream>
+
+namespace cluon {
+
+inline SharedMemory::SharedMemory(const std::string &name, uint32_t size) noexcept
+    : m_size(size) {
+    if (!name.empty()) {
+        constexpr int MAX_LENGTH_NAME{254};
+        const std::string n{name.substr(0, (name.size() > MAX_LENGTH_NAME ? MAX_LENGTH_NAME : name.size()))};
+        if ('/' != n[0]) {
+            m_name = "/";
+        }
+        m_name += n;
+        if (m_name.size() > MAX_LENGTH_NAME) {
+            m_name = m_name.substr(0, MAX_LENGTH_NAME);
+        }
+
+#ifndef WIN32
+        // If size is greater than 0, the caller wants to create a new shared
+        // memory area. Otherwise, the caller wants to open an existing shared memory.
+        int flags = O_RDWR;
+        if (0 < size) {
+            flags |= O_CREAT | O_EXCL;
+        }
+
+        m_fd = ::shm_open(m_name.c_str(), flags, S_IRUSR | S_IWUSR);
+        if (-1 == m_fd) {
+            std::cerr << "[cluon::SharedMemory] Failed to open shared memory '" << m_name << "': " << ::strerror(errno) << " (" << errno << ")" << std::endl;
+            // Try to remove existing shared memory segment and try again.
+            if ((flags & O_CREAT) == O_CREAT) {
+                std::clog << "[cluon::SharedMemory] Trying to remove existing shared memory '" << m_name << "' and trying again... ";
+                if (0 == ::shm_unlink(m_name.c_str())) {
+                    m_fd = ::shm_open(m_name.c_str(), flags, S_IRUSR | S_IWUSR);
+                }
+
+                if (-1 == m_fd) {
+                    std::cerr << "failed: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
+                } else {
+                    std::cerr << "succeeded." << std::endl;
+                }
+            }
+        }
+
+        if (-1 != m_fd) {
+            bool retVal{true};
+
+            // When creating a shared memory segment, truncate it.
+            if (0 < m_size) {
+                retVal = (0 == ::ftruncate(m_fd, sizeof(SharedMemoryHeader) + m_size));
+                if (!retVal) {
+                    std::cerr << "[cluon::SharedMemory] Failed to truncate '" << m_name << "': " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
+                              << std::endl; // LCOV_EXCL_LINE
+                }
+            }
+
+            // Accessing shared memory segment.
+            if (retVal) {
+                // On opening (i.e., NOT creating) a shared memory segment, m_size is still 0 and we need to figure out the size first.
+                m_sharedMemory = static_cast<char *>(::mmap(0, sizeof(SharedMemoryHeader) + m_size, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0));
+                if (MAP_FAILED != m_sharedMemory) {
+                    m_sharedMemoryHeader = reinterpret_cast<SharedMemoryHeader *>(m_sharedMemory);
+
+                    // On creating (i.e., NOT opening) a shared memory segment, setup the shared memory header.
+                    if (0 < m_size) {
+                        // Store user accessible size in shared memory.
+                        m_sharedMemoryHeader->__size = m_size;
+
+                        // Create process-shared mutex (fastest approach, cf. Stevens & Rago: "Advanced Programming in the UNIX (R) Environment").
+                        pthread_mutexattr_t mutexAttribute;
+                        ::pthread_mutexattr_init(&mutexAttribute);
+                        ::pthread_mutexattr_setpshared(&mutexAttribute, PTHREAD_PROCESS_SHARED); // Share between unrelated processes.
+#ifndef __APPLE__
+                        ::pthread_mutexattr_setrobust(&mutexAttribute, PTHREAD_MUTEX_ROBUST); // Allow continuation of other processes waiting for this mutex
+                                                                                              // when the currently holding process unexpectedly terminates.
+#endif
+                        ::pthread_mutexattr_settype(&mutexAttribute, PTHREAD_MUTEX_NORMAL); // Using regular mutex with deadlock behavior.
+                        ::pthread_mutex_init(&(m_sharedMemoryHeader->__mutex), &mutexAttribute);
+                        ::pthread_mutexattr_destroy(&mutexAttribute);
+
+                        // Create shared condition.
+                        pthread_condattr_t conditionAttribute;
+                        ::pthread_condattr_init(&conditionAttribute);
+#ifndef __APPLE__
+                        ::pthread_condattr_setclock(&conditionAttribute, CLOCK_MONOTONIC); // Use realtime clock for timed waits with non-negative jumps.
+#endif
+                        ::pthread_condattr_setpshared(&conditionAttribute, PTHREAD_PROCESS_SHARED); // Share between unrelated processes.
+                        ::pthread_cond_init(&(m_sharedMemoryHeader->__condition), &conditionAttribute);
+                        ::pthread_condattr_destroy(&conditionAttribute);
+                    } else {
+                        // Indicate that this instance is attaching to an existing shared memory segment.
+                        m_hasOnlyAttachedToSharedMemory = true;
+
+                        // Read size as we are attaching to an existing shared memory.
+                        m_size = m_sharedMemoryHeader->__size;
+
+                        // Now, as we know the real size, unmap the first mapping that did not know the size.
+                        if ((nullptr != m_sharedMemory) && ::munmap(m_sharedMemory, sizeof(SharedMemoryHeader))) {
+                            std::cerr << "[cluon::SharedMemory] Failed to unmap shared memory: " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
+                                      << std::endl; // LCOV_EXCL_LINE
+                        }
+
+                        // Invalidate all pointers.
+                        m_sharedMemory       = nullptr;
+                        m_sharedMemoryHeader = nullptr;
+
+                        // Re-map with the correct size parameter.
+                        m_sharedMemory = static_cast<char *>(::mmap(0, sizeof(SharedMemoryHeader) + m_size, PROT_READ | PROT_WRITE, MAP_SHARED, m_fd, 0));
+                        if (MAP_FAILED != m_sharedMemory) {
+                            m_sharedMemoryHeader = reinterpret_cast<SharedMemoryHeader *>(m_sharedMemory);
+                        }
+                    }
+                } else { // LCOV_EXCL_LINE
+                    std::cerr << "[cluon::SharedMemory] Failed to map '" << m_name << "': " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
+                              << std::endl; // LCOV_EXCL_LINE
+                }
+
+                // If the shared memory segment is correctly available, store the pointer for the user data.
+                if (MAP_FAILED != m_sharedMemory) {
+                    m_userAccessibleSharedMemory = m_sharedMemory + sizeof(SharedMemoryHeader);
+
+                    // Lock the shared memory into RAM for performance reasons.
+                    if (-1 == ::mlock(m_sharedMemory, sizeof(SharedMemoryHeader) + m_size)) {
+                        std::cerr << "[cluon::SharedMemory] Failed to mlock shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
+                    }
+                }
+            } else {                                          // LCOV_EXCL_LINE
+                if (-1 != m_fd) {                             // LCOV_EXCL_LINE
+                    if (-1 == ::shm_unlink(m_name.c_str())) { // LCOV_EXCL_LINE
+                        std::cerr << "[cluon::SharedMemory] Failed to unlink shared memory: " << ::strerror(errno) << " (" << errno << ")" // LCOV_EXCL_LINE
+                                  << std::endl; // LCOV_EXCL_LINE
+                    }
+                }
+                m_fd = -1; // LCOV_EXCL_LINE
+            }
+        }
+#endif
+    }
+}
+
+inline SharedMemory::~SharedMemory() noexcept {
+#ifndef WIN32
+    if ((nullptr != m_sharedMemoryHeader) && (!m_hasOnlyAttachedToSharedMemory)) {
+        // Wake any waiting threads as we are going to end the shared memory session.
+        ::pthread_cond_broadcast(&(m_sharedMemoryHeader->__condition));
+        ::pthread_cond_destroy(&(m_sharedMemoryHeader->__condition));
+        ::pthread_mutex_destroy(&(m_sharedMemoryHeader->__mutex));
+    }
+    if ((nullptr != m_sharedMemory) && ::munmap(m_sharedMemory, sizeof(SharedMemoryHeader) + m_size)) {
+        std::cerr << "[cluon::SharedMemory] Failed to unmap shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
+    }
+    if (!m_hasOnlyAttachedToSharedMemory && (-1 != m_fd) && (-1 == ::shm_unlink(m_name.c_str()) && (ENOENT != errno))) {
+        std::cerr << "[cluon::SharedMemory] Failed to unlink shared memory: " << ::strerror(errno) << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
+    }
+#endif
+}
+
+inline void SharedMemory::lock() noexcept {
+#ifndef WIN32
+    if (nullptr != m_sharedMemoryHeader) {
+        if (EOWNERDEAD == ::pthread_mutex_lock(&(m_sharedMemoryHeader->__mutex))) {
+            std::cerr << "[cluon::SharedMemory] pthread_mutex_lock returned for EOWNERDEAD for mutex in shared memory '" << m_name << "': " << ::strerror(errno) // LCOV_EXCL_LINE
+                      << " (" << errno << ")" << std::endl; // LCOV_EXCL_LINE
+        }
+    }
+#endif
+}
+
+inline void SharedMemory::unlock() noexcept {
+#ifndef WIN32
+    if (nullptr != m_sharedMemoryHeader) {
+        ::pthread_mutex_unlock(&(m_sharedMemoryHeader->__mutex));
+    }
+#endif
+}
+
+inline void SharedMemory::wait() noexcept {
+#ifndef WIN32
+    if (nullptr != m_sharedMemoryHeader) {
+        lock();
+        ::pthread_cond_wait(&(m_sharedMemoryHeader->__condition), &(m_sharedMemoryHeader->__mutex));
+        unlock();
+    }
+#endif
+}
+
+inline void SharedMemory::notifyAll() noexcept {
+#ifndef WIN32
+    if (nullptr != m_sharedMemoryHeader) {
+        ::pthread_cond_broadcast(&(m_sharedMemoryHeader->__condition));
+    }
+#endif
+}
+
+inline char *SharedMemory::data() noexcept {
+    return m_userAccessibleSharedMemory;
+}
+
+inline uint32_t SharedMemory::size() const noexcept {
+    return m_size;
+}
+
+inline const std::string SharedMemory::name() const noexcept {
+    return m_name;
+}
+
+inline bool SharedMemory::valid() noexcept {
+    bool valid{-1 != m_fd};
+    valid &= (nullptr != m_sharedMemory);
+#ifndef WIN32
+    valid &= (MAP_FAILED != m_sharedMemory);
+#endif
+    valid &= (0 < m_size);
+    return valid;
+}
+
+} // namespace cluon
 #endif
 #ifdef HAVE_CLUON_MSC
 /*
