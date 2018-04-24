@@ -86,7 +86,7 @@ void PwmMotors::initialisePru()
 {
   int32_t fileDescriptor;
   terminatePru();
-  std::ofstream fileFirmware(m_PRU0_FW);
+  std::ofstream fileFirmware(m_PRU1_FW);
   fileFirmware << m_SERVO_PRU_FW;
   fileFirmware.flush();
   fileFirmware.close();
