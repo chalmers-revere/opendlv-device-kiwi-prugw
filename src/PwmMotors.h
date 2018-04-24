@@ -34,7 +34,7 @@ class PwmMotors {
   virtual ~PwmMotors();
   void actuate();
   std::string toString();
-  void setMotorPower(uint8_t const &, float const &);
+  void setMotorPower(uint8_t const &, float const & );
   void initialisePru();
   void terminatePru();
   void powerServoRail(bool const &);
@@ -70,16 +70,10 @@ class PwmMotors {
   std::string const m_PRU1_STATE;
   std::string const m_PRU0_FW;
   std::string const m_PRU1_FW;
-  // std::string const PRU0_NAME = "4a334000.pru0";
-  // std::string const PRU1_NAME = "4a338000.pru1";
-  // int32_t const PRU_NAME_LEN = 13;
-  // std::string const PRU0_UEVENT = "/sys/bus/platform/drivers/pru-rproc/4a334000.pru0/uevent";
-  // std::string const PRU1_UEVENT = "/sys/bus/platform/drivers/pru-rproc/4a338000.pru1/uevent";
 
   int32_t const PRU_ADDR = 0x4A300000;    // Start of PRU memory Page 184 am335x TRM
   int32_t const PRU_LEN = 0x80000;     // Length of PRU memory
   int32_t const PRU_SHAREDMEM = 0x10000;     // Offset to shared memory
-  // int32_t const CNT_OFFSET = 64;
 
   uint8_t const NUM_SERVO_CHANNELS = 8;
   // Most servos will keep moving out to 600-2400 

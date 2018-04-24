@@ -101,13 +101,13 @@ void PwmMotors::initialisePru()
     std::cerr << " ERROR: missing am335x pru firmware" << std::endl;
   }
 
-  std::ofstream fileState(m_PRU0_STATE);
+  std::ofstream fileState(m_PRU1_STATE);
   fileState << "start";
   fileState.flush();
   fileState.close();
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
-  std::ifstream fileStatus(m_PRU0_STATE);
+  std::ifstream fileStatus(m_PRU1_STATE);
   std::string strStatus;
   std::getline(fileStatus, strStatus);
   if(!strStatus.compare("running\n")) {
@@ -140,7 +140,7 @@ void PwmMotors::initialisePru()
 
 void PwmMotors::terminatePru()
 {
-  std::ofstream file(m_PRU0_STATE);
+  std::ofstream file(m_PRU1_STATE);
   file << "stop";
   file.flush();
   file.close();
@@ -244,7 +244,7 @@ int8_t PwmMotors::setPwmMicroSeconds(uint8_t const &a_ch, uint32_t const &a_us)
   }
 
   // PRU runs at 200Mhz. find #loops needed
-  uint32_t numLoops = static_cast<uint32_t>((a_us * 200.0f) / PRU_SERVO_LOOP_INSTRUCTIONS); 
+  uint32_t numLoops = (a_us * 200) / PRU_SERVO_LOOP_INSTRUCTIONS;
   // write to PRU shared memory
   m_prusharedMemInt32_ptr[a_ch-1] = numLoops;
   return 0;
