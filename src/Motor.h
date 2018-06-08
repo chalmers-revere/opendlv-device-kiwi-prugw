@@ -32,7 +32,7 @@ class Motor {
   std::string getName();
   MotorType getType();
   uint8_t getChannel();
-  void setPower(float const);
+  void setPower(float const &);
   float getPower();
   std::string toString();
 
