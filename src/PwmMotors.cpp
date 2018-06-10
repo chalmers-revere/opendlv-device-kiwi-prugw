@@ -100,7 +100,7 @@ void PwmMotors::initialisePru()
   if (stat(("/lib/firmware/" + m_SERVO_PRU_FW).c_str(), &sb) != 0 || !S_ISREG(sb.st_mode)) {
     std::cerr << " ERROR: missing am335x pru firmware" << std::endl;
   }
-
+  std::this_thread::sleep_for(std::chrono::milliseconds(10000));
   std::ofstream fileState(m_PRU1_STATE);
   fileState << "start";
   fileState.flush();
