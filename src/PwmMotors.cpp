@@ -75,21 +75,18 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
         exit(1);
       }
     }
-    initialisePru();
-    powerServoRail(true);
+
+    terminatePru();
   } else {
     std::cerr << " Invalid number of configurations for pwm motors.\n";
+    exit(1);
   }
 }
 
 void PwmMotors::initialisePru()
 {
   int32_t fileDescriptor;
-  terminatePru();
-  std::ofstream fileFirmware(m_PRU1_FW);
-  fileFirmware << m_SERVO_PRU_FW;
-  fileFirmware.flush();
-  fileFirmware.close();
+  write2file(m_PRU1_FW, m_SERVO_PRU_FW);
   volatile uint32_t  *pru;   // Points to start of PRU memory.
   struct stat sb;
   
@@ -99,36 +96,38 @@ void PwmMotors::initialisePru()
   // check if firmware exists
   if (stat(("/lib/firmware/" + m_SERVO_PRU_FW).c_str(), &sb) != 0 || !S_ISREG(sb.st_mode)) {
     std::cerr << " ERROR: missing am335x pru firmware" << std::endl;
+    exit(1);
   }
-  std::this_thread::sleep_for(std::chrono::milliseconds(10000));
-  std::ofstream fileState(m_PRU1_STATE);
-  fileState << "start";
-  fileState.flush();
-  fileState.close();
+  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  write2file(m_PRU1_STATE, "start");
   std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
   std::ifstream fileStatus(m_PRU1_STATE);
   std::string strStatus;
   std::getline(fileStatus, strStatus);
   if(!strStatus.compare("running\n")) {
-    std::cerr << " ERROR code: " << strStatus << std::endl;  
+    std::cerr << " ERROR code: " << strStatus << std::endl;
+    exit(1);
   }
 
   // start mmaping shared memory
   fileDescriptor = open("/dev/mem", O_RDWR | O_SYNC);
   if (fileDescriptor == -1) {
     std::cerr << " ERROR: could not open /dev/mem." << std::endl;
+    exit(1);
   }
   
   pru = static_cast<volatile uint32_t*>(mmap(0, PRU_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor, PRU_ADDR));
   if (pru == MAP_FAILED) {
     std::cerr << " ERROR: could not map memory." << std::endl;
+    exit(1);
   }
   close(fileDescriptor);
 
   m_prusharedMemInt32_ptr = pru + PRU_SHAREDMEM / 4; // Points to start of shared memory
   if (m_prusharedMemInt32_ptr == NULL) {
     std::cerr << " ERROR: pru shared mem is null." << std::endl;
+    exit(1);
   }
 
   std::cout << "Successfully initialized servo/esc PRU" << std::endl;
@@ -140,11 +139,7 @@ void PwmMotors::initialisePru()
 
 void PwmMotors::terminatePru()
 {
-  std::ofstream file(m_PRU1_STATE);
-  file << "stop";
-  file.flush();
-  file.close();
-  std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  write2file(m_PRU1_STATE, "stop");
 }
 
 PwmMotors::~PwmMotors() 
@@ -214,12 +209,11 @@ void PwmMotors::write2file(std::string const &a_path, std::string const &a_str)
   if (file.is_open()) {
     file << a_str;
   } else {
-    std::cerr << " Could not open " << a_path 
-        << "." << std::endl;
+    std::cerr << " Could not open " << a_path << "." << std::endl;
+    exit(1);
   }    
   file.flush();
   file.close();
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
 /*******************************************************************************
@@ -330,8 +324,6 @@ int8_t PwmMotors::setEscNormalizedAll(float const &a_input)
 
 
 /*******************************************************************************
-* int rc_send_oneshot_pulse_normalized(int ch, float input)
-* 
 * normalized input of 0-1 corresponds to output pulse from 125-250 us
 * input is allowed to go down to -0.1 so ESC can be armed below minimum throttle
 *******************************************************************************/
@@ -348,25 +340,5 @@ int8_t PwmMotors::setEscOneshotNormalized(uint8_t const &a_ch, float const &a_in
   uint32_t micros = static_cast<uint32_t>(125.0f + (a_input*125.0f));
   return setPwmMicroSeconds(a_ch, micros);
 }
-
-/*******************************************************************************
-* int rc_send_oneshot_pulse_normalized_all(float input)
-* 
-* 
-*******************************************************************************/
-int8_t PwmMotors::setEscOneshotNormalizedAll(float const &a_input)
-{
-  int ret = 0;
-  for (uint8_t i = 1; i <= NUM_SERVO_CHANNELS; i++) {
-    int8_t retCh = setEscOneshotNormalized(i, a_input);
-    if (retCh == -2) {
-      return -2;
-    } else if(retCh == -1) {
-      ret = -1;
-    }
-  }
-  return ret;
-}
-
 
 
