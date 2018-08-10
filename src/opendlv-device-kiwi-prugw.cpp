@@ -35,90 +35,95 @@ void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
         std::lock_guard<std::mutex> lock(*mtx);
         if(isActive) {
           brightness << '1';
+          brightness.flush();
         } else {
           brightness << std::to_string(isLit);
+          brightness.flush();
           isLit = !isLit;
         }
       }
       sleep(1);
     }
+    brightness << '0';
+    brightness.flush();
   } else {
     std::cerr << "Could not open led node." << std::endl;
-  }    
+  }
+  
   brightness.flush();
   brightness.close();
 
 }
 
-void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool *programIsRunning)
-{
-  int32_t const gpio_mod_fd = open("/sys/class/gpio/gpio68/val", O_RDONLY | O_NONBLOCK );
-  int32_t const gpio_pause_fd = open("/sys/class/gpio/gpio69/val", O_RDONLY | O_NONBLOCK );
-  struct pollfd fdset[2];
-  int32_t const nfds = 2;
-  // int gpio_fd, rc;
-  char buf[1];
+// void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool *programIsRunning)
+// {
+//   int32_t const gpio_mod_fd = open("/sys/class/gpio/gpio68/val", O_RDONLY | O_NONBLOCK );
+//   int32_t const gpio_pause_fd = open("/sys/class/gpio/gpio69/val", O_RDONLY | O_NONBLOCK );
+//   struct pollfd fdset[2];
+//   int32_t const nfds = 2;
+//   // int gpio_fd, rc;
+//   char buf[1];
 
-  while (programIsRunning) {
-    memset(&fdset[0], 0, sizeof(fdset));
+//   while (programIsRunning) {
+//     memset(&fdset[0], 0, sizeof(fdset));
 
-    fdset[0].fd = gpio_mod_fd;
-    fdset[0].events = POLLPRI;
-    fdset[1].fd = gpio_pause_fd;
-    fdset[1].events = POLLPRI;
+//     fdset[0].fd = gpio_mod_fd;
+//     fdset[0].events = POLLPRI;
+//     fdset[1].fd = gpio_pause_fd;
+//     fdset[1].events = POLLPRI;
 
-    if (poll(fdset, nfds, -1) < 0) {
-      std::cout << "poll() failed!" << std::endl;
-    }
+//     if (poll(fdset, nfds, -1) < 0) {
+//       std::cout << "poll() failed!" << std::endl;
+//     }
 
-    if (fdset[0].revents & POLLPRI) {
-      cluon::data::TimeStamp pressTimestamp = cluon::time::now();
-      lseek(fdset[0].fd, 0, SEEK_SET);
-      int len = read(fdset[0].fd, buf, 1);
-      if (len == 1 && atoi(buf) == '1') {
-        std::cout << "Mod pressed..." << std::endl;
-        if (poll(&fdset[0], nfds-1, -1) < 0) {
-          std::cout << "poll() failed!" << std::endl;
-          exit(1);
-        }
-        if (fdset[0].revents & POLLPRI) {
-          std::cout << "Mod released...." << std::endl;
-          cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
-          double ref = (double) releaseTimestamp.seconds() + (double) releaseTimestamp.microseconds();
-          ref -= ((double) pressTimestamp.seconds() + (double) pressTimestamp.microseconds());
-          std::cout << "Mod held for " << ref << "seconds." << std::endl;
-          {
-            std::lock_guard<std::mutex> lock(*mtx);
-            if (ref < 1.0) {
-              *isActive = true;
-              pwmMotors->initialisePru();
-            } else {
-              *isActive = false;
-              pwmMotors->terminatePru();
-            }
-          }
-        }
-      }
-    } else if (fdset[1].revents & POLLPRI) {
-      cluon::data::TimeStamp pressTimestamp = cluon::time::now();
-      lseek(fdset[1].fd, 0, SEEK_SET);
-      int len = read(fdset[1].fd, buf, 1);
-      if (len == 1 && atoi(buf) == '1') {
-        std::cout << "Pause pressed..." << std::endl;
-        if (poll(&fdset[1], nfds-1, -1) < 0) {
-          std::cout << "poll() failed!" << std::endl;
-        }
-        if (fdset[0].revents & POLLPRI) {
-          std::cout << "Pause released...." << std::endl;
-          cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
-          double ref = (double) releaseTimestamp.seconds() + (double) releaseTimestamp.microseconds();
-          ref -= ((double) pressTimestamp.seconds() + (double) pressTimestamp.microseconds());
-          std::cout << "Pause held for " << ref << "seconds." << std::endl;
-        }
-      }
-    }
-  }
-}
+//     if (fdset[0].revents & POLLPRI) {
+//       cluon::data::TimeStamp pressTimestamp = cluon::time::now();
+//       lseek(fdset[0].fd, 0, SEEK_SET);
+//       int len = read(fdset[0].fd, buf, 1);
+//       if (len == 1 && atoi(buf) == '1') {
+//         std::cout << "Mod pressed..." << std::endl;
+//         if (poll(&fdset[0], nfds-1, -1) < 0) {
+//           std::cout << "poll() failed!" << std::endl;
+//           exit(1);
+//         }
+//         if (fdset[0].revents & POLLPRI) {
+//           std::cout << "Mod released...." << std::endl;
+//           cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
+//           double ref = (double) releaseTimestamp.seconds() + (double) releaseTimestamp.microseconds();
+//           ref -= ((double) pressTimestamp.seconds() + (double) pressTimestamp.microseconds());
+//           std::cout << "Mod held for " << ref << "seconds." << std::endl;
+//           {
+//             std::lock_guard<std::mutex> lock(*mtx);
+//             if (ref < 1.0) {
+//               *isActive = true;
+//               pwmMotors->initialisePru();
+//             } else {
+//               *isActive = false;
+//               pwmMotors->terminatePru();
+//             }
+//           }
+//         }
+//       }
+//     } else if (fdset[1].revents & POLLPRI) {
+//       cluon::data::TimeStamp pressTimestamp = cluon::time::now();
+//       lseek(fdset[1].fd, 0, SEEK_SET);
+//       int len = read(fdset[1].fd, buf, 1);
+//       if (len == 1 && atoi(buf) == '1') {
+//         std::cout << "Pause pressed..." << std::endl;
+//         if (poll(&fdset[1], nfds-1, -1) < 0) {
+//           std::cout << "poll() failed!" << std::endl;
+//         }
+//         if (fdset[0].revents & POLLPRI) {
+//           std::cout << "Pause released...." << std::endl;
+//           cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
+//           double ref = (double) releaseTimestamp.seconds() + (double) releaseTimestamp.microseconds();
+//           ref -= ((double) pressTimestamp.seconds() + (double) pressTimestamp.microseconds());
+//           std::cout << "Pause held for " << ref << "seconds." << std::endl;
+//         }
+//       }
+//     }
+//   }
+// }
 
 
 int32_t main(int32_t argc, char **argv) {
@@ -218,7 +223,7 @@ int32_t main(int32_t argc, char **argv) {
       return true;
     }};
     std::thread ledThread(LedController, &mtx, &isActive, &programIsRunning);
-    std::thread buttonThread(ButtonListener, &mtx, &isActive, &pwmMotors, &programIsRunning);
+    // std::thread buttonThread(ButtonListener, &mtx, &isActive, &pwmMotors, &programIsRunning);
 
     od4.timeTrigger(FREQ, atFrequency);
 
