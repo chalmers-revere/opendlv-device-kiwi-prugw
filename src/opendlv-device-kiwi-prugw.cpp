@@ -88,17 +88,17 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
     fdset[1].fd = gpio_pause_fd;
     fdset[1].events = POLLPRI;
 
-    if (poll(fdset, nfds, 1) < 0) {
+    if (poll(fdset, nfds, 1000) < 0) {
       std::cout << "poll() failed!" << std::endl;
     }
 
     if (fdset[0].revents & POLLPRI) {
-      cluon::data::TimeStamp pressTimestamp = cluon::time::now();
+      // cluon::data::TimeStamp pressTimestamp = cluon::time::now();
       lseek(fdset[0].fd, 0, SEEK_SET);
       int32_t len = read(fdset[0].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
         std::cout << "Mod pressed..." << std::endl;
-        int32_t pollFlag = poll(&fdset[0], nfds-1, 1); 
+        int32_t pollFlag = poll(&fdset[0], nfds-1, 1000); 
         if (poll(&fdset[0], nfds-1, 1) < 0) {
           std::cout << "poll() failed!" << std::endl;
           exit(1);
@@ -120,14 +120,14 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
       int32_t len = read(fdset[1].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
         std::cout << "Pause pressed..." << std::endl;
-        if (poll(&fdset[1], nfds-1, 1) < 0) {
+        if (poll(&fdset[1], nfds-1, 1000) < 0) {
           std::cout << "poll() failed!" << std::endl;
         }
         if (fdset[1].revents & POLLPRI) {
           std::cout << "Pause released...." << std::endl;
           cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
-          double ref = (double) releaseTimestamp.seconds() + ((double) releaseTimestamp.microseconds())/1000000.0;
-          ref -= ((double) pressTimestamp.seconds() + ((double) pressTimestamp.microseconds())/1000000.0);
+          float ref = (float) releaseTimestamp.seconds() + ((float) releaseTimestamp.microseconds())/1000000.0f;
+          ref -= ((float) pressTimestamp.seconds() + ((float) pressTimestamp.microseconds())/1000000.0f);
           std::cout << "Pause held for " << ref << "seconds." << std::endl;
         }
       }
