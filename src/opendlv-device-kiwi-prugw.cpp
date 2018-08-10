@@ -232,7 +232,7 @@ int32_t main(int32_t argc, char **argv) {
     }
     programIsRunning = false;
     ledThread.join();
-    buttonThread.join();
+    // buttonThread.join();
   }
   return 0;
 }
