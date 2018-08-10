@@ -42,7 +42,7 @@ void write2file(std::string const &a_path, std::string const &a_str)
 }
 
 
-void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
+void LedController(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isActive, std::shared_ptr<bool> programIsRunning)
 {
   // std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness", std::ofstream::out);
   std::string const redPath = "/sys/class/leds/red/brightness";
@@ -64,7 +64,7 @@ void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
   write2file(redPath, "0");
 }
 
-void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool *programIsRunning)
+void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isActive, std::shared_ptr<PwmMotors> pwmMotors, std::shared_ptr<bool> programIsRunning)
 {
   struct stat sb;
   if (stat("/sys/class/gpio/gpio68", &sb) != 0) {
@@ -170,13 +170,14 @@ int32_t main(int32_t argc, char **argv) {
       return 1;
     }
 
-    PwmMotors pwmMotors(names, types, channels, offsets, maxvals);
+    // PwmMotors pwmMotors(names, types, channels, offsets, maxvals);
+    std::shared_ptr<PwmMotors> pwmMotors = std::make_shared<PwmMotors>(names, types, channels, offsets, maxvals);
 
     auto onGroundSteeringRequest{[&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope)
     {
       auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
       float const groundSteering = gst.groundSteering() / angleConversion;
-      pwmMotors.setMotorPower(1, groundSteering);
+      pwmMotors->setMotorPower(1, groundSteering);
     }};
     auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope)
     {
@@ -187,7 +188,7 @@ int32_t main(int32_t argc, char **argv) {
       } else if (val < 0.1f){
         val = 0.1f;
       }
-      pwmMotors.setMotorPower(2, val);
+      pwmMotors->setMotorPower(2, val);
     }};
 
     cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
@@ -197,37 +198,35 @@ int32_t main(int32_t argc, char **argv) {
     if (VERBOSE == 2) {
       initscr();
     }
-    std::mutex mtx;
-    bool isActive = false;
-    bool programIsRunning = true;
+    std::shared_ptr<std::mutex> mtx = std::make_shared<std::mutex>();
+    std::shared_ptr<bool> isActive = std::make_shared<bool>(false);
+    std::shared_ptr<bool> programIsRunning = std::make_shared<bool>(true);
   
     auto atFrequency{[&pwmMotors, &VERBOSE, &mtx, &isActive]() -> bool
     {
-      {
-        std::lock_guard<std::mutex> lock(mtx);
-        // This must be called regularly (>40hz) to keep servos or ESCs awake.
-        if (isActive) {
-          pwmMotors.actuate();
-        }
-        if (VERBOSE == 1) {
-          std::cout << pwmMotors.toString() << std::endl;
-        }
-        if (VERBOSE == 2) {
-          mvprintw(1,1,(pwmMotors.toString()).c_str()); 
-          refresh();      /* Print it on to the real screen */
-        }
+      std::lock_guard<std::mutex> lock(*mtx);
+      // This must be called regularly (>40hz) to keep servos or ESCs awake.
+      if (*isActive) {
+        pwmMotors->actuate();
+      }
+      if (VERBOSE == 1) {
+        std::cout << pwmMotors->toString() << std::endl;
+      }
+      if (VERBOSE == 2) {
+        mvprintw(1,1,(pwmMotors->toString()).c_str()); 
+        refresh();      /* Print it on to the real screen */
       }
       return true;
     }};
-    std::thread ledThread(LedController, &mtx, &isActive, &programIsRunning);
-    std::thread buttonThread(ButtonListener, &mtx, &isActive, &pwmMotors, &programIsRunning);
+    std::thread ledThread(LedController, mtx, isActive, programIsRunning);
+    std::thread buttonThread(ButtonListener, mtx, isActive, pwmMotors, programIsRunning);
 
     od4.timeTrigger(FREQ, atFrequency);
 
     if (VERBOSE == 2) {
       endwin();     /* End curses mode      */
     }
-    programIsRunning = false;
+    *programIsRunning = false;
     ledThread.join();
     buttonThread.join();
   }
