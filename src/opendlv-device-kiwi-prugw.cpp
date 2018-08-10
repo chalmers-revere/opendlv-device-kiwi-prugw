@@ -90,7 +90,7 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
           std::cout << "Mod released...." << std::endl;
           cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
           double ref = (double) releaseTimestamp.seconds() + ((double) releaseTimestamp.microseconds())/1000000.0;
-          ref -= ((double) pressTimestamp.seconds() + ((double) releaseTimestamp.microseconds())/1000000.0;
+          ref -= ((double) pressTimestamp.seconds() + ((double) pressTimestamp.microseconds())/1000000.0);
           std::cout << "Mod held for " << ref << "seconds." << std::endl;
           {
             std::lock_guard<std::mutex> lock(*mtx);
@@ -117,7 +117,7 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
           std::cout << "Pause released...." << std::endl;
           cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
           double ref = (double) releaseTimestamp.seconds() + ((double) releaseTimestamp.microseconds())/1000000.0;
-          ref -= ((double) pressTimestamp.seconds() + ((double) releaseTimestamp.microseconds())/1000000.0;
+          ref -= ((double) pressTimestamp.seconds() + ((double) pressTimestamp.microseconds())/1000000.0);
           std::cout << "Pause held for " << ref << "seconds." << std::endl;
         }
       }
