@@ -25,12 +25,12 @@
 #include "PwmMotors.h"
 
 
-[[noreturn]] void LedController(std::mutex *mtx, bool *isActive)
+void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
 {
   std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness", std::ofstream::out);
   if (brightness.is_open()) {
     bool isLit = false; 
-    while (1){
+    while (programIsRunning){
       {
         std::lock_guard<std::mutex> lock(*mtx);
         if(isActive) {
@@ -44,14 +44,13 @@
     }
   } else {
     std::cerr << "Could not open led node." << std::endl;
-    exit(1);
   }    
   brightness.flush();
   brightness.close();
 
 }
 
-[[noreturn]] void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors)
+void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool *programIsRunning)
 {
   int32_t const gpio_mod_fd = open("/sys/class/gpio/gpio68/val", O_RDONLY | O_NONBLOCK );
   int32_t const gpio_pause_fd = open("/sys/class/gpio/gpio69/val", O_RDONLY | O_NONBLOCK );
@@ -60,7 +59,7 @@
   // int gpio_fd, rc;
   char buf[1];
 
-  while (1) {
+  while (programIsRunning) {
     memset(&fdset[0], 0, sizeof(fdset));
 
     fdset[0].fd = gpio_mod_fd;
@@ -70,7 +69,6 @@
 
     if (poll(fdset, nfds, -1) < 0) {
       std::cout << "poll() failed!" << std::endl;
-      exit(1);
     }
 
     if (fdset[0].revents & POLLPRI) {
@@ -109,7 +107,6 @@
         std::cout << "Pause pressed..." << std::endl;
         if (poll(&fdset[1], nfds-1, -1) < 0) {
           std::cout << "poll() failed!" << std::endl;
-          exit(1);
         }
         if (fdset[0].revents & POLLPRI) {
           std::cout << "Pause released...." << std::endl;
@@ -199,7 +196,8 @@ int32_t main(int32_t argc, char **argv) {
       initscr();
     }
     std::mutex mtx;
-    bool isActive;
+    bool isActive = false;
+    bool programIsRunning = true;
   
     auto atFrequency{[&pwmMotors, &VERBOSE, &mtx, &isActive]() -> bool
     {
@@ -219,14 +217,15 @@ int32_t main(int32_t argc, char **argv) {
       }
       return true;
     }};
-    std::thread ledThread(LedController, &mtx, &isActive);
-    std::thread buttonThread(ButtonListener, &mtx, &isActive, &pwmMotors);
+    std::thread ledThread(LedController, &mtx, &isActive, &programIsRunning);
+    std::thread buttonThread(ButtonListener, &mtx, &isActive, &pwmMotors, &programIsRunning);
 
     od4.timeTrigger(FREQ, atFrequency);
 
     if (VERBOSE == 2) {
       endwin();     /* End curses mode      */
     }
+    programIsRunning = false;
     ledThread.join();
     buttonThread.join();
   }
