@@ -74,7 +74,7 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
   write2file("/sys/class/gpio/gpio68/direction", "in");
   write2file("/sys/class/gpio/gpio69/direction", "in");
   write2file("/sys/class/gpio/gpio68/edge", "falling");
-  write2file("/sys/class/gpio/gpio69/edge", "both");
+  write2file("/sys/class/gpio/gpio69/edge", "falling");
   int32_t const gpio_mod_fd = open("/sys/class/gpio/gpio68/value", O_RDONLY | O_NONBLOCK );
   int32_t const gpio_pause_fd = open("/sys/class/gpio/gpio69/value", O_RDONLY | O_NONBLOCK );
   struct pollfd fdset[2];
@@ -98,38 +98,21 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
       int32_t len = read(fdset[0].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
         std::cout << "Mod pressed..." << std::endl;
-        int32_t pollFlag = poll(&fdset[0], nfds-1, 1000); 
-        if (poll(&fdset[0], nfds-1, 1) < 0) {
-          std::cout << "poll() failed!" << std::endl;
-          exit(1);
-        }
         std::lock_guard<std::mutex> lock(*mtx);
-        if (pollFlag == 0) {
-          *isActive = false;
-          pwmMotors->terminatePru();
-          std::cout << "PRU terminated!" << std::endl;
-        } else {
-          *isActive = true;
-          pwmMotors->initialisePru();
-          std::cout << "PRU started!" << std::endl;
-        }
-      }
+        *isActive = true;
+        pwmMotors->initialisePru();
+        std::cout << "PRU started!" << std::endl;
+    }
     } else if (fdset[1].revents & POLLPRI) {
       cluon::data::TimeStamp pressTimestamp = cluon::time::now();
       lseek(fdset[1].fd, 0, SEEK_SET);
       int32_t len = read(fdset[1].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
         std::cout << "Pause pressed..." << std::endl;
-        if (poll(&fdset[1], nfds-1, 1000) < 0) {
-          std::cout << "poll() failed!" << std::endl;
-        }
-        if (fdset[1].revents & POLLPRI) {
-          std::cout << "Pause released...." << std::endl;
-          cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
-          float ref = (float) releaseTimestamp.seconds() + ((float) releaseTimestamp.microseconds())/1000000.0f;
-          ref -= ((float) pressTimestamp.seconds() + ((float) pressTimestamp.microseconds())/1000000.0f);
-          std::cout << "Pause held for " << ref << "seconds." << std::endl;
-        }
+        std::lock_guard<std::mutex> lock(*mtx);
+        *isActive = false;
+        pwmMotors->terminatePru();
+        std::cout << "PRU terminated!" << std::endl;
       }
     }
   }
