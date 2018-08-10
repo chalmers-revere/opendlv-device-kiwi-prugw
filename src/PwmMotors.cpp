@@ -85,6 +85,8 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
 
 void PwmMotors::initialisePru()
 {
+
+  std::lock_guard<std::mutex> l(m_mutex);
   int32_t fileDescriptor;
   write2file(m_PRU1_FW, m_SERVO_PRU_FW);
   volatile uint32_t  *pru;   // Points to start of PRU memory.
@@ -139,7 +141,12 @@ void PwmMotors::initialisePru()
 
 void PwmMotors::terminatePru()
 {
+
+  std::lock_guard<std::mutex> l(m_mutex);
   write2file(m_PRU1_STATE, "stop");
+  for (uint8_t i = 8; i < NUM_SERVO_CHANNELS; i++) {
+    m_prusharedMemInt32_ptr[i] = 0;
+  }
 }
 
 PwmMotors::~PwmMotors() 
