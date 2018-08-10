@@ -30,10 +30,10 @@ void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
   std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness", std::ofstream::out);
   if (brightness.is_open()) {
     bool isLit = false; 
-    while (programIsRunning){
+    while (*programIsRunning){
       {
         std::lock_guard<std::mutex> lock(*mtx);
-        if(isActive) {
+        if(*isActive) {
           brightness << '1';
           brightness.flush();
         } else {
@@ -64,7 +64,7 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
   // int gpio_fd, rc;
   char buf[1];
 
-  while (programIsRunning) {
+  while (*programIsRunning) {
     memset(&fdset[0], 0, sizeof(fdset));
 
     fdset[0].fd = gpio_mod_fd;
