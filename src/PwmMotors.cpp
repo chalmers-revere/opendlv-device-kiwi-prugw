@@ -189,8 +189,8 @@ void PwmMotors::actuate()
 
 void PwmMotors::powerServoRail(bool const &a_val)
 {
+  struct stat sb;
   if (a_val){
-    struct stat sb;
     if (stat("/sys/class/gpio/gpio80", &sb) != 0) {
       write2file("/sys/class/gpio/export", "80");
     }
@@ -199,7 +199,9 @@ void PwmMotors::powerServoRail(bool const &a_val)
   } else {
     write2file("/sys/class/gpio/gpio80/value", "0");
     write2file("/sys/class/gpio/gpio80/direction", "in");
-    write2file("/sys/class/gpio/unexport", "80");
+    if (stat("/sys/class/gpio/gpio80", &sb) == 0) {
+      write2file("/sys/class/gpio/unexport", "80");
+    }
   }
 }
 

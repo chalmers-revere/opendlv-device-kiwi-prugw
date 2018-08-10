@@ -73,7 +73,7 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
   }
   write2file("/sys/class/gpio/gpio68/direction", "in");
   write2file("/sys/class/gpio/gpio69/direction", "in");
-  write2file("/sys/class/gpio/gpio68/edge", "rising");
+  write2file("/sys/class/gpio/gpio68/edge", "falling");
   write2file("/sys/class/gpio/gpio69/edge", "both");
   int32_t const gpio_mod_fd = open("/sys/class/gpio/gpio68/value", O_RDONLY | O_NONBLOCK );
   int32_t const gpio_pause_fd = open("/sys/class/gpio/gpio69/value", O_RDONLY | O_NONBLOCK );
