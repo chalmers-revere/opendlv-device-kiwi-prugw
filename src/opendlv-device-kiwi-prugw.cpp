@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2018 Ola Benderius
+ * Copyright (C) 2018 Björnborg Nguyen
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -18,99 +18,109 @@
 #include <ncurses.h>
 #include <poll.h>
 #include <thread>
+#include <sys/stat.h> // checking if file/dir exist
+#include <fstream>
+#include <string>
+
 
 #include "cluon-complete.hpp"
 #include "opendlv-standard-message-set.hpp"
 
 #include "PwmMotors.h"
 
+void write2file(std::string const &a_path, std::string const &a_str)
+{
+  std::ofstream file(a_path, std::ofstream::out);
+  if (file.is_open()) {
+    file << a_str;
+  } else {
+    std::cerr << " Could not open " << a_path << "." << std::endl;
+    exit(1);
+  }    
+  file.flush();
+  file.close();
+}
+
 
 void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
 {
-  std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness", std::ofstream::out);
-  if (brightness.is_open()) {
-    bool isLit = false; 
-    while (*programIsRunning){
-      {
-        std::lock_guard<std::mutex> lock(*mtx);
-        if(*isActive) {
-          brightness << std::to_string(isLit);
-          brightness.flush();
-          isLit = !isLit;
-        } else {
-          brightness << '1';
-          brightness.flush();
-        }
+  // std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness", std::ofstream::out);
+  std::string const brightnessPath = "/sys/devices/platform/leds/leds/wifi/brightness";
+  bool isLit = false; 
+  while (*programIsRunning){
+    {
+      std::lock_guard<std::mutex> lock(*mtx);
+      if(*isActive) {
+        write2file(brightnessPath, std::to_string(isLit));
+        isLit = !isLit;
+      } else {
+        write2file(brightnessPath, "1");
       }
-      sleep(1);
     }
-    brightness << '0';
-    brightness.flush();
-  } else {
-    std::cerr << "Could not open led node." << std::endl;
+    sleep(1);
   }
-  
-  brightness.flush();
-  brightness.close();
-
+  write2file(brightnessPath, "0");
 }
 
 void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool *programIsRunning)
 {
+  struct stat sb;
+  if (stat("/sys/class/gpio/gpio68", &sb) != 0) {
+    write2file("/sys/class/gpio/export", "68");
+  }
+  if (stat("/sys/class/gpio/gpio69", &sb) != 0) {
+    write2file("/sys/class/gpio/export", "69");
+  }
+  write2file("/sys/class/gpio/gpio68/direction", "in");
+  write2file("/sys/class/gpio/gpio69/direction", "in");
+  write2file("/sys/class/gpio/gpio68/edge", "rising");
+  write2file("/sys/class/gpio/gpio69/edge", "both");
   int32_t const gpio_mod_fd = open("/sys/class/gpio/gpio68/value", O_RDONLY | O_NONBLOCK );
   int32_t const gpio_pause_fd = open("/sys/class/gpio/gpio69/value", O_RDONLY | O_NONBLOCK );
   struct pollfd fdset[2];
   int32_t const nfds = 2;
-  // int gpio_fd, rc;
   char buf[1];
 
   while (*programIsRunning) {
     memset(&fdset[0], 0, sizeof(fdset));
-
     fdset[0].fd = gpio_mod_fd;
     fdset[0].events = POLLPRI;
     fdset[1].fd = gpio_pause_fd;
     fdset[1].events = POLLPRI;
 
-    if (poll(fdset, nfds, -1) < 0) {
+    if (poll(fdset, nfds, 1) < 0) {
       std::cout << "poll() failed!" << std::endl;
     }
 
     if (fdset[0].revents & POLLPRI) {
       cluon::data::TimeStamp pressTimestamp = cluon::time::now();
       lseek(fdset[0].fd, 0, SEEK_SET);
-      int len = read(fdset[0].fd, buf, 1);
+      int32_t len = read(fdset[0].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
         std::cout << "Mod pressed..." << std::endl;
-        if (poll(&fdset[0], nfds-1, -1) < 0) {
+        int32_t pollFlag = poll(&fdset[0], nfds-1, 1); 
+        if (poll(&fdset[0], nfds-1, 1) < 0) {
           std::cout << "poll() failed!" << std::endl;
           exit(1);
         }
-        if (fdset[0].revents & POLLPRI) {
-          std::cout << "Mod released...." << std::endl;
-          cluon::data::TimeStamp releaseTimestamp = cluon::time::now();
-          double ref = (double) releaseTimestamp.seconds() + ((double) releaseTimestamp.microseconds())/1000000.0;
-          ref -= ((double) pressTimestamp.seconds() + ((double) pressTimestamp.microseconds())/1000000.0);
-          std::cout << "Mod held for " << ref << "seconds." << std::endl;
-          {
-            std::lock_guard<std::mutex> lock(*mtx);
-            if (ref < 1.0) {
-              *isActive = true;
-              pwmMotors->initialisePru();
-            } else {
-              *isActive = false;
-              pwmMotors->terminatePru();
-            }
-          }
+        std::lock_guard<std::mutex> lock(*mtx);
+        if (pollFlag == 0) {
+          *isActive = false;
+          pwmMotors->terminatePru();
+          std::cout << "PRU terminated!" << std::endl;
+        } else {
+          *isActive = true;
+          pwmMotors->initialisePru();
+          std::cout << "PRU started!" << std::endl;
         }
       }
     } else if (fdset[1].revents & POLLPRI) {
       cluon::data::TimeStamp pressTimestamp = cluon::time::now();
       lseek(fdset[1].fd, 0, SEEK_SET);
-      int len = read(fdset[1].fd, buf, 1);
+      int32_t len = read(fdset[1].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
         std::cout << "Pause pressed..." << std::endl;
-        if (poll(&fdset[1], nfds-1, -1) < 0) {
+        if (poll(&fdset[1], nfds-1, 1) < 0) {
           std::cout << "poll() failed!" << std::endl;
         }
         if (fdset[1].revents & POLLPRI) {
@@ -123,6 +133,8 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
       }
     }
   }
+  write2file("/sys/class/gpio/unexport", "68");
+  write2file("/sys/class/gpio/unexport", "69");
 }
 
 
