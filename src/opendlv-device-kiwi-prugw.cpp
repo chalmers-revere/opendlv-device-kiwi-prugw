@@ -45,21 +45,23 @@ void write2file(std::string const &a_path, std::string const &a_str)
 void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
 {
   // std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness", std::ofstream::out);
-  std::string const brightnessPath = "/sys/devices/platform/leds/leds/wifi/brightness";
-  bool isLit = false; 
+  std::string const redPath = "/sys/class/leds/red/brightness";
+  std::string const greenPath = "/sys/class/leds/green/brightness";
   while (*programIsRunning){
     {
       std::lock_guard<std::mutex> lock(*mtx);
       if(*isActive) {
-        write2file(brightnessPath, std::to_string(isLit));
-        isLit = !isLit;
+        write2file(greenPath, "1");
+        write2file(redPath, "0");
       } else {
-        write2file(brightnessPath, "1");
+        write2file(greenPath, "0");
+        write2file(redPath, "1");
       }
     }
     sleep(1);
   }
-  write2file(brightnessPath, "0");
+  write2file(greenPath, "0");
+  write2file(redPath, "0");
 }
 
 void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool *programIsRunning)
@@ -97,22 +99,22 @@ void ButtonListener(std::mutex *mtx, bool *isActive, PwmMotors *pwmMotors, bool 
       lseek(fdset[0].fd, 0, SEEK_SET);
       int32_t len = read(fdset[0].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
-        std::cout << "Mod pressed..." << std::endl;
+        // std::cout << "Mod pressed..." << std::endl;
         std::lock_guard<std::mutex> lock(*mtx);
         *isActive = true;
         pwmMotors->initialisePru();
-        std::cout << "PRU started!" << std::endl;
+        // std::cout << "PRU started!" << std::endl;
     }
     } else if (fdset[1].revents & POLLPRI) {
       cluon::data::TimeStamp pressTimestamp = cluon::time::now();
       lseek(fdset[1].fd, 0, SEEK_SET);
       int32_t len = read(fdset[1].fd, buf, 1);
       if (len == 1 && atoi(buf) == 0) {
-        std::cout << "Pause pressed..." << std::endl;
+        // std::cout << "Pause pressed..." << std::endl;
         std::lock_guard<std::mutex> lock(*mtx);
         *isActive = false;
         pwmMotors->terminatePru();
-        std::cout << "PRU terminated!" << std::endl;
+        // std::cout << "PRU terminated!" << std::endl;
       }
     }
   }

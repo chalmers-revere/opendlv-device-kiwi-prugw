@@ -197,9 +197,9 @@ void PwmMotors::powerServoRail(bool const &a_val)
     write2file("/sys/class/gpio/gpio80/direction", "out");
     write2file("/sys/class/gpio/gpio80/value", "1");
   } else {
-    write2file("/sys/class/gpio/gpio80/value", "0");
-    write2file("/sys/class/gpio/gpio80/direction", "in");
     if (stat("/sys/class/gpio/gpio80", &sb) == 0) {
+      write2file("/sys/class/gpio/gpio80/value", "0");
+      write2file("/sys/class/gpio/gpio80/direction", "in");
       write2file("/sys/class/gpio/unexport", "80");
     }
   }
