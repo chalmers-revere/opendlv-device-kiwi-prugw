@@ -34,12 +34,12 @@ void LedController(std::mutex *mtx, bool *isActive, bool *programIsRunning)
       {
         std::lock_guard<std::mutex> lock(*mtx);
         if(*isActive) {
-          brightness << '1';
-          brightness.flush();
-        } else {
           brightness << std::to_string(isLit);
           brightness.flush();
           isLit = !isLit;
+        } else {
+          brightness << '1';
+          brightness.flush();
         }
       }
       sleep(1);
@@ -231,8 +231,8 @@ int32_t main(int32_t argc, char **argv) {
       endwin();     /* End curses mode      */
     }
     programIsRunning = false;
-    // ledThread.join();
-    // buttonThread.join();
+    ledThread.join();
+    buttonThread.join();
   }
   return 0;
 }
