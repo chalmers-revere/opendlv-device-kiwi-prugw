@@ -25,9 +25,11 @@ Motor::Motor(std::string const a_name, MotorType const a_type,
     , m_type(a_type)
     , m_channel(a_ch)
     , m_power(a_offset)
-    , m_offset(a_offset)
+    , m_offset(0)
     , m_maxval(a_maxval)
-{}
+{
+  setOffset(a_offset);
+}
 
 Motor::~Motor()
 {}
@@ -88,6 +90,35 @@ void Motor::setPower(float const &a_val)
     }
     m_power = val;
   }
+}
+
+void Motor::setOffset(float const &a_val)
+{
+  switch (m_type) {
+    case MotorType::Esc :
+      if (a_val > 0.8f) {
+        m_offset = 0.8f;
+      } else if (a_val < -0.2f) {
+        m_offset = -0.2f;
+      }
+      m_offset = a_val;
+      break;
+    case MotorType::Servo :
+      if (a_val > 0.3f) {
+        m_offset = 0.3f;
+      } else if (a_val < -0.3f) {
+        m_offset = -0.3f;
+      }
+      m_offset = a_val;
+      break;
+    default:
+      break;
+  }
+}
+
+float Motor::getOffset()
+{
+  return m_offset;
 }
 
 std::string Motor::toString() 

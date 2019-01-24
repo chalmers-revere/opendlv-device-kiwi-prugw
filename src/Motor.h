@@ -33,7 +33,9 @@ class Motor {
   MotorType getType();
   uint8_t getChannel();
   void setPower(float const &);
+  void setOffset(float const &);
   float getPower();
+  float getOffset();
   std::string toString();
 
 

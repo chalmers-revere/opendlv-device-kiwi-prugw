@@ -51,6 +51,7 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
     , m_PRU1_STATE{"/sys/class/remoteproc/remoteproc2/state"}
     , m_PRU0_FW{"/sys/class/remoteproc/remoteproc1/firmware"}
     , m_PRU1_FW{"/sys/class/remoteproc/remoteproc2/firmware"}
+    , m_calFile(".env")
 {
 
   if (a_names.size() == a_channels.size() && a_names.size() == a_types.size()
@@ -154,6 +155,7 @@ void PwmMotors::terminatePru()
 
 PwmMotors::~PwmMotors() 
 {
+  saveCalibration();
   terminatePru();
   m_prusharedMemInt32_ptr = NULL;
 }
@@ -164,6 +166,16 @@ void PwmMotors::setMotorPower(uint8_t const &a_ch, float const &a_power) {
     if (m_motors.at(i).getChannel() == a_ch) {
       std::lock_guard<std::mutex> l(m_mutex);
       m_motors.at(i).setPower(a_power);
+      break;
+    }
+  }
+}
+
+void PwmMotors::setMotorOffset(uint8_t const &a_ch, float const &a_offset) {
+  for (uint8_t i = 0; i < m_motors.size(); ++i) {
+    if (m_motors.at(i).getChannel() == a_ch) {
+      std::lock_guard<std::mutex> l(m_mutex);
+      m_motors.at(i).setPower(a_offset);
       break;
     }
   }
@@ -224,6 +236,48 @@ void PwmMotors::write2file(std::string const &a_path, std::string const &a_str)
   }    
   file.flush();
   file.close();
+}
+
+void PwmMotors::saveCalibration()
+{
+  if (m_motors.size() < 1) {
+    return;
+  }
+  
+  std::stringstream ss;
+  std::string line;
+  
+  std::ifstream filein(m_calFile); //File to read from
+  
+  if (filein.is_open()) {
+    while (getline(filein, line)) {
+      if (!(line.find("OFFSETS") == std::string::npos)) {
+        ss << "OFFSETS=";
+        ss << std::to_string(m_motors.at(0).getOffset());
+        for (uint8_t i = 1; i < m_motors.size(); i++) {
+          ss << ",";
+          ss << std::to_string(m_motors.at(i).getOffset());
+        }
+        ss << "\n";
+      } else {
+        ss << line;
+        ss << "\n";
+      }
+
+    }
+  }
+  filein.close();
+  std::ofstream fileout(m_calFile, std::ofstream::trunc);
+
+  if (fileout.is_open()) {
+    std::string buffer = ss.str();
+    buffer.erase(std::unique(buffer.begin(), buffer.end(),
+            [] (char a, char b) {return a == '\n' && b == '\n';}),
+        buffer.end());
+    fileout << buffer;
+  }
+  fileout.close();
+
 }
 
 /*******************************************************************************

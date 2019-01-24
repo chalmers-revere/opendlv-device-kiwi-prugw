@@ -114,7 +114,7 @@ void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isAct
         std::lock_guard<std::mutex> lock(*mtx);
         *isActive = false;
         pwmMotors->terminatePru();
-        // std::cout << "PRU terminated!" << std::endl;
+        std::cout << "PRU terminated!" << std::endl;
       }
     }
   }
@@ -175,9 +175,15 @@ int32_t main(int32_t argc, char **argv) {
 
     auto onGroundSteeringRequest{[&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope)
     {
-      auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
-      float const groundSteering = gst.groundSteering() / angleConversion;
-      pwmMotors->setMotorPower(1, groundSteering);
+      if (envelope.senderStamp() == 0){
+        auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
+        float const groundSteering = gst.groundSteering() / angleConversion;
+        pwmMotors->setMotorPower(1, groundSteering);
+      } else if (envelope.senderStamp() == 9999) {
+        auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
+        float const groundSteering = gst.groundSteering();
+        pwmMotors->setMotorOffset(1, groundSteering);
+      }
     }};
     auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope)
     {

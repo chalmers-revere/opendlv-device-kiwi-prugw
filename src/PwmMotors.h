@@ -35,6 +35,7 @@ class PwmMotors {
   void actuate();
   std::string toString();
   void setMotorPower(uint8_t const &, float const & );
+  void setMotorOffset(uint8_t const &, float const & );
   void initialisePru();
   void terminatePru();
   void powerServoRail(bool const &);
@@ -46,6 +47,7 @@ class PwmMotors {
   PwmMotors &operator=(PwmMotors &&) = delete;
 
   void write2file(std::string const &, std::string const &);
+  void saveCalibration();
   int32_t getPruEncoderPos();
   int8_t setPruEncoderPos(int32_t );
   int8_t setPwmMicroSeconds(uint8_t const &, uint32_t const &);
@@ -70,6 +72,7 @@ class PwmMotors {
   std::string const m_PRU1_STATE;
   std::string const m_PRU0_FW;
   std::string const m_PRU1_FW;
+  std::string const m_calFile;
 
   int32_t const PRU_ADDR = 0x4A300000;    // Start of PRU memory Page 184 am335x TRM
   int32_t const PRU_LEN = 0x80000;     // Length of PRU memory
