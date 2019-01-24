@@ -175,7 +175,7 @@ void PwmMotors::setMotorOffset(uint8_t const &a_ch, float const &a_offset) {
   for (uint8_t i = 0; i < m_motors.size(); ++i) {
     if (m_motors.at(i).getChannel() == a_ch) {
       std::lock_guard<std::mutex> l(m_mutex);
-      m_motors.at(i).setPower(a_offset);
+      m_motors.at(i).setOffset(a_offset);
       break;
     }
   }
