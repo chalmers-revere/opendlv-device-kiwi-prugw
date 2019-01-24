@@ -183,6 +183,7 @@ int32_t main(int32_t argc, char **argv) {
         auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
         float const groundSteering = gst.groundSteering();
         pwmMotors->setMotorOffset(1, groundSteering);
+        std::cout << "Got: " << groundSteering << std::endl;
       }
     }};
     auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope)
