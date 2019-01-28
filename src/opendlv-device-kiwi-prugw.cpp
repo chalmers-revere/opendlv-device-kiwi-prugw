@@ -83,6 +83,13 @@ void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isAct
   int32_t const nfds = 2;
   char buf[1];
 
+  {
+    std::lock_guard<std::mutex> lock(*mtx);
+    pwmMotors->terminatePru();
+    pwmMotors->initialisePru();
+    pwmMotors->terminatePru();
+  }
+
   while (*programIsRunning) {
     memset(&fdset[0], 0, sizeof(fdset));
     fdset[0].fd = gpio_mod_fd;

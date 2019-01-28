@@ -179,6 +179,7 @@ void PwmMotors::setMotorOffset(uint8_t const &a_ch, float const &a_offset) {
       break;
     }
   }
+  saveCalibration();
 }
 
 std::string PwmMotors::toString()
