@@ -157,7 +157,7 @@ int32_t main(int32_t argc, char **argv) {
     std::vector<std::string> channels = stringtoolbox::split(commandlineArguments["channels"],',');
     std::vector<std::string> offsets = stringtoolbox::split(commandlineArguments["offsets"],',');
     std::vector<std::string> maxvals = stringtoolbox::split(commandlineArguments["maxvals"],',');
-    float const angleConversion = std::stof(commandlineArguments["angleconversion"]);
+   // float const angleConversion = std::stof(commandlineArguments["angleconversion"]);
 
     if (names.empty())
     {
@@ -180,6 +180,7 @@ int32_t main(int32_t argc, char **argv) {
     // PwmMotors pwmMotors(names, types, channels, offsets, maxvals);
     std::shared_ptr<PwmMotors> pwmMotors = std::make_shared<PwmMotors>(names, types, channels, offsets, maxvals);
 
+    /*
     auto onGroundSteeringRequest{[&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope)
     {
       if (envelope.senderStamp() == 0){
@@ -192,20 +193,15 @@ int32_t main(int32_t argc, char **argv) {
         pwmMotors->setMotorOffset(1, groundSteering);
       }
     }};
+    */
     auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope)
     {
       opendlv::proxy::PedalPositionRequest const ppr = cluon::extractMessage<opendlv::proxy::PedalPositionRequest>(std::move(envelope));
-      float val = (ppr.position()+1)/2.0f;
-      if (val > 1.0f) {
-        val = 1.0f;
-      } else if (val < 0.1f){
-        val = 0.1f;
-      }
-      pwmMotors->setMotorPower(2, val);
+      pwmMotors->setMotorPower(envelope.senderStamp() + 1, ppr.position());
     }};
 
     cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
-    od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
+//    od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
     od4.dataTrigger(opendlv::proxy::PedalPositionRequest::ID(), onPedalPositionRequest);
 
     if (VERBOSE == 2) {
