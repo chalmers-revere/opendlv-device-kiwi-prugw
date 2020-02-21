@@ -17,40 +17,39 @@
 
 #include <ncurses.h>
 #include <poll.h>
-#include <thread>
-#include <sys/stat.h> // checking if file/dir exist
+#include <sys/stat.h>  // checking if file/dir exist
 #include <fstream>
 #include <string>
-
+#include <thread>
 
 #include "cluon-complete.hpp"
 #include "opendlv-standard-message-set.hpp"
 
 #include "PwmMotors.h"
 
-void write2file(std::string const &a_path, std::string const &a_str)
-{
+void write2file(std::string const &a_path, std::string const &a_str) {
   std::ofstream file(a_path, std::ofstream::out);
   if (file.is_open()) {
     file << a_str;
   } else {
     std::cerr << " Could not open " << a_path << "." << std::endl;
     exit(1);
-  }    
+  }
   file.flush();
   file.close();
 }
 
-
-void LedController(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isActive, std::shared_ptr<bool> programIsRunning)
-{
-  // std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness", std::ofstream::out);
+void LedController(std::shared_ptr<std::mutex> mtx,
+                   std::shared_ptr<bool> isActive,
+                   std::shared_ptr<bool> programIsRunning) {
+  // std::ofstream brightness("/sys/devices/platform/leds/leds/wifi/brightness",
+  // std::ofstream::out);
   std::string const redPath = "/sys/class/leds/red/brightness";
   std::string const greenPath = "/sys/class/leds/green/brightness";
-  while (*programIsRunning){
+  while (*programIsRunning) {
     {
       std::lock_guard<std::mutex> lock(*mtx);
-      if(*isActive) {
+      if (*isActive) {
         write2file(greenPath, "1");
         write2file(redPath, "0");
       } else {
@@ -64,8 +63,10 @@ void LedController(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isActi
   write2file(redPath, "0");
 }
 
-void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isActive, std::shared_ptr<PwmMotors> pwmMotors, std::shared_ptr<bool> programIsRunning)
-{
+void ButtonListener(std::shared_ptr<std::mutex> mtx,
+                    std::shared_ptr<bool> isActive,
+                    std::shared_ptr<PwmMotors> pwmMotors,
+                    std::shared_ptr<bool> programIsRunning) {
   struct stat sb;
   if (stat("/sys/class/gpio/gpio68", &sb) != 0) {
     write2file("/sys/class/gpio/export", "68");
@@ -77,8 +78,10 @@ void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isAct
   write2file("/sys/class/gpio/gpio69/direction", "in");
   write2file("/sys/class/gpio/gpio68/edge", "falling");
   write2file("/sys/class/gpio/gpio69/edge", "falling");
-  int32_t const gpio_mod_fd = open("/sys/class/gpio/gpio68/value", O_RDONLY | O_NONBLOCK );
-  int32_t const gpio_pause_fd = open("/sys/class/gpio/gpio69/value", O_RDONLY | O_NONBLOCK );
+  int32_t const gpio_mod_fd =
+      open("/sys/class/gpio/gpio68/value", O_RDONLY | O_NONBLOCK);
+  int32_t const gpio_pause_fd =
+      open("/sys/class/gpio/gpio69/value", O_RDONLY | O_NONBLOCK);
   struct pollfd fdset[2];
   int32_t const nfds = 2;
   char buf[1];
@@ -98,7 +101,7 @@ void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isAct
     fdset[1].events = POLLPRI;
 
     if (poll(fdset, nfds, 1000) < 0) {
-      std::cout << "poll() failed!" << std::endl;
+      std::cerr << "poll() failed!" << std::endl;
     }
 
     if (fdset[0].revents & POLLPRI) {
@@ -111,7 +114,7 @@ void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isAct
         *isActive = true;
         pwmMotors->initialisePru();
         // std::cout << "PRU started!" << std::endl;
-    }
+      }
     } else if (fdset[1].revents & POLLPRI) {
       cluon::data::TimeStamp pressTimestamp = cluon::time::now();
       lseek(fdset[1].fd, 0, SEEK_SET);
@@ -129,7 +132,6 @@ void ButtonListener(std::shared_ptr<std::mutex> mtx, std::shared_ptr<bool> isAct
   write2file("/sys/class/gpio/unexport", "69");
 }
 
-
 int32_t main(int32_t argc, char **argv) {
   auto commandlineArguments = cluon::getCommandlineArguments(argc, argv);
   if (0 == commandlineArguments.count("cid") ||
@@ -139,12 +141,20 @@ int32_t main(int32_t argc, char **argv) {
       0 == commandlineArguments.count("offsets") ||
       0 == commandlineArguments.count("maxvals") ||
       0 == commandlineArguments.count("angleconversion")) {
-    std::cerr << argv[0] << " interfaces to the motors of the Kiwi platform." << std::endl;
-    std::cerr << "Usage:   " << argv[0] << " --cid=<OpenDaVINCI session> --names=<Strings> --types=<esc or servo> --channels=<1...8>  --offsets<-1...1> --maxvals=<floats> --angleconversion=<const> [--verbose]" << std::endl;
-    std::cerr << "Example: " << argv[0] << " --cid=111 --names=steering,propulsion --types=servo,esc --channels=1,2 --offsets=0,0 --maxvals=0.5,0 --angleconversion=1" << std::endl;
+    std::cerr << argv[0] << " interfaces to the motors of the Kiwi platform."
+              << std::endl;
+    std::cerr << "Usage:   " << argv[0]
+              << " --cid=<OpenDaVINCI session> --names=<Strings> --types=<esc "
+                 "or servo> --channels=<1...8>  --offsets<-1...1> "
+                 "--maxvals=<floats> --angleconversion=<const> [--verbose]"
+              << std::endl;
+    std::cerr
+        << "Example: " << argv[0]
+        << " --cid=111 --names=steering,propulsion --types=servo,esc "
+           "--channels=1,2 --offsets=0,0 --maxvals=0.5,0 --angleconversion=1"
+        << std::endl;
     return 1;
   } else {
-
     // Setup
     int32_t VERBOSE{commandlineArguments.count("verbose") != 0};
     if (VERBOSE) {
@@ -152,15 +162,20 @@ int32_t main(int32_t argc, char **argv) {
     }
     float const FREQ = 20;
 
-    std::vector<std::string> names = stringtoolbox::split(commandlineArguments["names"],',');
-    std::vector<std::string> types = stringtoolbox::split(commandlineArguments["types"],',');
-    std::vector<std::string> channels = stringtoolbox::split(commandlineArguments["channels"],',');
-    std::vector<std::string> offsets = stringtoolbox::split(commandlineArguments["offsets"],',');
-    std::vector<std::string> maxvals = stringtoolbox::split(commandlineArguments["maxvals"],',');
-    float const angleConversion = std::stof(commandlineArguments["angleconversion"]);
+    std::vector<std::string> names =
+        stringtoolbox::split(commandlineArguments["names"], ',');
+    std::vector<std::string> types =
+        stringtoolbox::split(commandlineArguments["types"], ',');
+    std::vector<std::string> channels =
+        stringtoolbox::split(commandlineArguments["channels"], ',');
+    std::vector<std::string> offsets =
+        stringtoolbox::split(commandlineArguments["offsets"], ',');
+    std::vector<std::string> maxvals =
+        stringtoolbox::split(commandlineArguments["maxvals"], ',');
+    float const angleConversion =
+        std::stof(commandlineArguments["angleconversion"]);
 
-    if (names.empty())
-    {
+    if (names.empty()) {
       names.push_back(commandlineArguments["names"]);
       types.push_back(commandlineArguments["types"]);
       channels.push_back(commandlineArguments["channels"]);
@@ -168,45 +183,55 @@ int32_t main(int32_t argc, char **argv) {
       maxvals.push_back(commandlineArguments["maxvals"]);
     }
 
-    if (names.size() != types.size() ||
-        names.size() != types.size() ||
-        names.size() != channels.size() ||
-        names.size() != offsets.size() ||
+    if (names.size() != types.size() || names.size() != types.size() ||
+        names.size() != channels.size() || names.size() != offsets.size() ||
         names.size() != maxvals.size()) {
-      std::cerr << "Number of arguments do not match, use ',' as delimiter." << std::endl;
+      std::cerr << "Number of arguments do not match, use ',' as delimiter."
+                << std::endl;
       return 1;
     }
 
     // PwmMotors pwmMotors(names, types, channels, offsets, maxvals);
-    std::shared_ptr<PwmMotors> pwmMotors = std::make_shared<PwmMotors>(names, types, channels, offsets, maxvals);
+    std::shared_ptr<PwmMotors> pwmMotors =
+        std::make_shared<PwmMotors>(names, types, channels, offsets, maxvals);
 
-    auto onGroundSteeringRequest{[&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope)
-    {
-      if (envelope.senderStamp() == 0){
-        auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
-        float const groundSteering = gst.groundSteering() / angleConversion;
-        pwmMotors->setMotorPower(1, groundSteering);
-      } else if (envelope.senderStamp() == 9999) {
-        auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
-        float const groundSteering = gst.groundSteering();
-        pwmMotors->setMotorOffset(1, groundSteering);
-      }
-    }};
-    auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope)
-    {
-      opendlv::proxy::PedalPositionRequest const ppr = cluon::extractMessage<opendlv::proxy::PedalPositionRequest>(std::move(envelope));
-      float val = (ppr.position()+1)/2.0f;
+    auto onGroundSteeringRequest{
+        [&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope) {
+          if (envelope.senderStamp() == 0) {
+            auto const gst =
+                cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(
+                    std::move(envelope));
+            float const groundSteering = gst.groundSteering() / angleConversion;
+            pwmMotors->setMotorPower(1, groundSteering);
+            pwmMotors->updateTimestamp();
+          } else if (envelope.senderStamp() == 9999) {
+            auto const gst =
+                cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(
+                    std::move(envelope));
+            float const groundSteering = gst.groundSteering();
+            pwmMotors->setMotorOffset(1, groundSteering);
+          }
+        }};
+    auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope) {
+      opendlv::proxy::PedalPositionRequest const ppr =
+          cluon::extractMessage<opendlv::proxy::PedalPositionRequest>(
+              std::move(envelope));
+      float val = (ppr.position() + 1) / 2.0f;
       if (val > 1.0f) {
         val = 1.0f;
-      } else if (val < 0.1f){
+      } else if (val < 0.1f) {
         val = 0.1f;
       }
       pwmMotors->setMotorPower(2, val);
+      pwmMotors->updateTimestamp();
     }};
 
-    cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
-    od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
-    od4.dataTrigger(opendlv::proxy::PedalPositionRequest::ID(), onPedalPositionRequest);
+    cluon::OD4Session od4{
+        static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
+    od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(),
+                    onGroundSteeringRequest);
+    od4.dataTrigger(opendlv::proxy::PedalPositionRequest::ID(),
+                    onPedalPositionRequest);
 
     if (VERBOSE == 2) {
       initscr();
@@ -214,30 +239,30 @@ int32_t main(int32_t argc, char **argv) {
     std::shared_ptr<std::mutex> mtx = std::make_shared<std::mutex>();
     std::shared_ptr<bool> isActive = std::make_shared<bool>(false);
     std::shared_ptr<bool> programIsRunning = std::make_shared<bool>(true);
-  
-    auto atFrequency{[&pwmMotors, &VERBOSE, &mtx, &isActive]() -> bool
-    {
+
+    auto atFrequency{[&pwmMotors, &VERBOSE, &mtx, &isActive, &od4]() -> bool {
       std::lock_guard<std::mutex> lock(*mtx);
       // This must be called regularly (>40hz) to keep servos or ESCs awake.
-      if (*isActive) {
+      if (*isActive && !pwmMotors->isIdle()) {
         pwmMotors->actuate();
       }
       if (VERBOSE == 1) {
-        std::cout << pwmMotors->toString() << std::endl;
+        std::clog << pwmMotors->toString() << std::endl;
       }
       if (VERBOSE == 2) {
-        mvprintw(1,1,(pwmMotors->toString()).c_str()); 
-        refresh();      /* Print it on to the real screen */
+        mvprintw(1, 1, (pwmMotors->toString()).c_str());
+        refresh(); /* Print it on to the real screen */
       }
-      return true;
+      return od4.isRunning();
     }};
     std::thread ledThread(LedController, mtx, isActive, programIsRunning);
-    std::thread buttonThread(ButtonListener, mtx, isActive, pwmMotors, programIsRunning);
+    std::thread buttonThread(ButtonListener, mtx, isActive, pwmMotors,
+                             programIsRunning);
 
     od4.timeTrigger(FREQ, atFrequency);
 
     if (VERBOSE == 2) {
-      endwin();     /* End curses mode      */
+      endwin(); /* End curses mode      */
     }
     *programIsRunning = false;
     ledThread.join();
