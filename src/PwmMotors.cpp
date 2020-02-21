@@ -413,11 +413,12 @@ bool PwmMotors::isIdle() noexcept {
     return true;
   } else {
     std::lock_guard<std::mutex> l(m_mutex);
-    int64_t const timeThreshold = 100000;
-    int64_t timeDiffInSeconds =
-        cluon::time::deltaInMicroseconds(m_lastUpdate, cluon::time::now());
-    m_idle = timeDiffInSeconds > timeThreshold;
-    std::clog << " Time diff: \n" << timeDiffInSeconds << "  Idle?" << m_idle;
+    int64_t const timeThresholdinMicroseconds = 100000;
+    int64_t timeDiffInMicroseconds =
+        cluon::time::deltaInMicroseconds(cluon::time::now(), m_lastUpdate);
+    m_idle = timeDiffInMicroseconds > timeThresholdinMicroseconds;
+    std::clog << " Time diff: \n"
+              << timeDiffInMicroseconds << "  Idle?" << m_idle;
     if (m_idle) {
       for (auto motor : m_motors) {
         setMotorPower(motor.getChannel(), 0.0f);
