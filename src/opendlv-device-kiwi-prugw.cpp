@@ -243,7 +243,8 @@ int32_t main(int32_t argc, char **argv) {
     auto atFrequency{[&pwmMotors, &VERBOSE, &mtx, &isActive, &od4]() -> bool {
       std::lock_guard<std::mutex> lock(*mtx);
       // This must be called regularly (>40hz) to keep servos or ESCs awake.
-      if (*isActive && !pwmMotors->isIdle()) {
+      if (*isActive) {
+        pwmMotors->isIdle();
         pwmMotors->actuate();
       }
       if (VERBOSE == 1) {
