@@ -422,6 +422,7 @@ bool PwmMotors::isIdle() noexcept {
         setMotorPower(motor.getChannel(), 0.0f);
       }
       powerServoRail(false);
+      std::clog << " Started to idle\n";
     }
     return m_idle;
   }
@@ -431,6 +432,7 @@ void PwmMotors::updateTimestamp() {
   std::lock_guard<std::mutex> l(m_mutex);
   m_lastUpdate = cluon::time::now();
   if (m_idle) {
+    std::clog << " Stopped being idle\n";
     powerServoRail(true);
     m_idle = false;
   }
