@@ -24,12 +24,13 @@ RUN cat /etc/apk/repositories && \
 
 RUN apk update && \
     apk --no-cache add \
-        cmake \
-        g++ \
-        upx \
-        ccache \
-        ncurses-dev \
-        make
+    cmake \
+    g++ \
+    upx \
+    ccache \
+    ncurses-dev \
+    make  \
+    linux-headers
 
 RUN apk add libcluon --no-cache --repository https://chrberger.github.io/libcluon/alpine/v3.7 --allow-untrusted
 

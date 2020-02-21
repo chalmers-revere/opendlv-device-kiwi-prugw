@@ -19,13 +19,14 @@ RUN echo "http://dl-cdn.alpinelinux.org/alpine/edge/testing" >> /etc/apk/reposit
 
 RUN apk update && \
     apk --no-cache add \
-        cmake \
-        g++ \
-        upx \
-        ccache \
-        ncurses-dev \
-        make 
-        
+    cmake \
+    g++ \
+    upx \
+    ccache \
+    ncurses-dev \
+    make  \
+    linux-headers
+
 RUN apk add libcluon --no-cache --repository https://chrberger.github.io/libcluon/alpine/v3.7 --allow-untrusted
 
 ADD . /opt/sources
@@ -43,7 +44,7 @@ FROM alpine:edge
 RUN apk update && \
     apk --no-cache add \
     ncurses-dev 
-    
+
 MAINTAINER Björnborg Nguyen "bjornborg.nguyen@chalmers.se"
 
 WORKDIR /usr/bin
