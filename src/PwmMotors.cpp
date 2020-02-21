@@ -417,6 +417,7 @@ bool PwmMotors::isIdle() noexcept {
     int64_t timeDiffInSeconds =
         cluon::time::deltaInMicroseconds(m_lastUpdate, cluon::time::now());
     m_idle = timeDiffInSeconds > timeThreshold;
+    std::clog << " Time diff: \n" << timeDiffInSeconds << "  Idle?" << m_idle;
     if (m_idle) {
       for (auto motor : m_motors) {
         setMotorPower(motor.getChannel(), 0.0f);
