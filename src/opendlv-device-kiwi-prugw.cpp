@@ -160,7 +160,7 @@ int32_t main(int32_t argc, char **argv) {
     if (VERBOSE) {
       VERBOSE = std::stoi(commandlineArguments["verbose"]);
     }
-    float const FREQ = 20;
+    float const FREQ = 50.0f;
 
     std::vector<std::string> names =
         stringtoolbox::split(commandlineArguments["names"], ',');

@@ -407,6 +407,7 @@ int8_t PwmMotors::setEscOneshotNormalized(uint8_t const &a_ch,
 }
 
 bool PwmMotors::isIdle() noexcept {
+  std::clog << " Checking idle\n";
   // cluon::data::TimeStamp now = cluon::time::now();
   // micro = 10^-6
   if (m_idle) {
