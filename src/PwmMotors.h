@@ -76,6 +76,7 @@ class PwmMotors {
   std::string const m_PRU1_FW;
   std::string const m_calFile;
   cluon::data::TimeStamp m_lastUpdate;
+  bool m_active;
   bool m_idle;
 
   int32_t const PRU_ADDR =

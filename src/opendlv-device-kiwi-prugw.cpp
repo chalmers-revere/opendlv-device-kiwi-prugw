@@ -86,13 +86,6 @@ void ButtonListener(std::shared_ptr<std::mutex> mtx,
   int32_t const nfds = 2;
   char buf[1];
 
-  {
-    std::lock_guard<std::mutex> lock(*mtx);
-    pwmMotors->terminatePru();
-    pwmMotors->initialisePru();
-    pwmMotors->terminatePru();
-  }
-
   while (*programIsRunning) {
     memset(&fdset[0], 0, sizeof(fdset));
     fdset[0].fd = gpio_mod_fd;
@@ -243,8 +236,9 @@ int32_t main(int32_t argc, char **argv) {
     auto atFrequency{[&pwmMotors, &VERBOSE, &mtx, &isActive, &od4]() -> bool {
       std::lock_guard<std::mutex> lock(*mtx);
       // This must be called regularly (>40hz) to keep servos or ESCs awake.
+      pwmMotors->isIdle();
       if (*isActive) {
-        pwmMotors->isIdle();
+        //pwmMotors->isIdle();
         pwmMotors->actuate();
       }
       if (VERBOSE == 1) {

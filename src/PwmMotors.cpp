@@ -53,6 +53,7 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
       m_PRU1_FW{"/sys/class/remoteproc/remoteproc2/firmware"},
       m_calFile(".env"),
       m_lastUpdate(cluon::time::now()),
+      m_active{false},
       m_idle{true} {
   if (a_names.size() == a_channels.size() && a_names.size() == a_types.size() &&
       a_channels.size() <= NUM_SERVO_CHANNELS && a_channels.size() > 0 &&
@@ -87,7 +88,6 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
 void PwmMotors::initialisePru() {
   std::lock_guard<std::mutex> l(m_mutex);
   int32_t fileDescriptor;
-  write2file(m_PRU1_FW, m_SERVO_PRU_FW);
   volatile uint32_t *pru;  // Points to start of PRU memory.
   struct stat sb;
 
@@ -100,10 +100,16 @@ void PwmMotors::initialisePru() {
       !S_ISREG(sb.st_mode)) {
     std::cerr << " ERROR: missing am335x pru firmware" << std::endl;
     exit(1);
+  
   }
-  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  
+  write2file(m_PRU1_STATE, "stop");
+  
+  write2file(m_PRU1_FW, m_SERVO_PRU_FW);
+  
+  std::this_thread::sleep_for(std::chrono::milliseconds(250));
   write2file(m_PRU1_STATE, "start");
-  // std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
   std::ifstream fileStatus(m_PRU1_STATE);
   std::string strStatus;
@@ -141,7 +147,8 @@ void PwmMotors::initialisePru() {
   for (uint8_t i = 8; i < NUM_SERVO_CHANNELS; i++) {
     m_prusharedMemInt32_ptr[i] = 0;
   }
-  powerServoRail(true);
+  m_active = true;
+  //powerServoRail(true); 
 }
 
 void PwmMotors::terminatePru() {
@@ -152,6 +159,8 @@ void PwmMotors::terminatePru() {
   for (uint8_t i = 8; i < NUM_SERVO_CHANNELS; i++) {
     m_prusharedMemInt32_ptr[i] = 0;
   }
+  m_active = false;
+  m_idle=true;
 }
 
 PwmMotors::~PwmMotors() {
@@ -407,22 +416,28 @@ int8_t PwmMotors::setEscOneshotNormalized(uint8_t const &a_ch,
 }
 
 bool PwmMotors::isIdle() noexcept {
-  std::clog << " Checking idle\n";
+  //std::clog << " Checking idle\n";
   // cluon::data::TimeStamp now = cluon::time::now();
   // micro = 10^-6
   if (m_idle) {
     return true;
   } else {
-    std::lock_guard<std::mutex> l(m_mutex);
-    int64_t const timeThresholdinMicroseconds = 100000;
-    int64_t timeDiffInMicroseconds =
-        cluon::time::deltaInMicroseconds(cluon::time::now(), m_lastUpdate);
-    m_idle = timeDiffInMicroseconds > timeThresholdinMicroseconds;
-    std::clog << " Time diff: " << timeDiffInMicroseconds << "  Idle?"
-              << m_idle;
+    int64_t const timeThresholdinMicroseconds = 500000;
+    {
+      std::lock_guard<std::mutex> l(m_mutex);
+      int64_t timeDiffInMicroseconds =
+          cluon::time::deltaInMicroseconds(cluon::time::now(), m_lastUpdate);
+      m_idle = timeDiffInMicroseconds > timeThresholdinMicroseconds;
+      // std::clog << " Time diff: " << timeDiffInMicroseconds << "  Idle?"
+      //        << m_idle;
+    }
     if (m_idle) {
       for (auto motor : m_motors) {
-        setMotorPower(motor.getChannel(), 0.0f);
+        //setMotorPower(motor.getChannel(), 0.0f);
+	if (motor.getType() == Motor::MotorType::Servo) {
+          setMotorPower(motor.getChannel(), 0.0);
+	} else {
+          setMotorPower(motor.getChannel(), 0.5f);					            }
       }
       powerServoRail(false);
       std::clog << " Started to idle\n";
@@ -434,7 +449,7 @@ bool PwmMotors::isIdle() noexcept {
 void PwmMotors::updateTimestamp() {
   std::lock_guard<std::mutex> l(m_mutex);
   m_lastUpdate = cluon::time::now();
-  if (m_idle) {
+  if (m_idle && m_active) {
     std::clog << " Stopped being idle\n";
     powerServoRail(true);
     m_idle = false;
