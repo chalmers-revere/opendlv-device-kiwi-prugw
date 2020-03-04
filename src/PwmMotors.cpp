@@ -100,16 +100,14 @@ void PwmMotors::initialisePru() {
       !S_ISREG(sb.st_mode)) {
     std::cerr << " ERROR: missing am335x pru firmware" << std::endl;
     exit(1);
-  
   }
-  
+
   write2file(m_PRU1_STATE, "stop");
-  
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   write2file(m_PRU1_FW, m_SERVO_PRU_FW);
-  
-  std::this_thread::sleep_for(std::chrono::milliseconds(250));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   write2file(m_PRU1_STATE, "start");
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
   std::ifstream fileStatus(m_PRU1_STATE);
   std::string strStatus;
@@ -148,7 +146,7 @@ void PwmMotors::initialisePru() {
     m_prusharedMemInt32_ptr[i] = 0;
   }
   m_active = true;
-  //powerServoRail(true); 
+  // powerServoRail(true);
 }
 
 void PwmMotors::terminatePru() {
@@ -160,7 +158,7 @@ void PwmMotors::terminatePru() {
     m_prusharedMemInt32_ptr[i] = 0;
   }
   m_active = false;
-  m_idle=true;
+  m_idle = true;
 }
 
 PwmMotors::~PwmMotors() {
@@ -416,7 +414,7 @@ int8_t PwmMotors::setEscOneshotNormalized(uint8_t const &a_ch,
 }
 
 bool PwmMotors::isIdle() noexcept {
-  //std::clog << " Checking idle\n";
+  // std::clog << " Checking idle\n";
   // cluon::data::TimeStamp now = cluon::time::now();
   // micro = 10^-6
   if (m_idle) {
@@ -433,11 +431,12 @@ bool PwmMotors::isIdle() noexcept {
     }
     if (m_idle) {
       for (auto motor : m_motors) {
-        //setMotorPower(motor.getChannel(), 0.0f);
-	if (motor.getType() == Motor::MotorType::Servo) {
+        // setMotorPower(motor.getChannel(), 0.0f);
+        if (motor.getType() == Motor::MotorType::Servo) {
           setMotorPower(motor.getChannel(), 0.0);
-	} else {
-          setMotorPower(motor.getChannel(), 0.5f);					            }
+        } else {
+          setMotorPower(motor.getChannel(), 0.5f);
+        }
       }
       powerServoRail(false);
       std::clog << " Started to idle\n";
