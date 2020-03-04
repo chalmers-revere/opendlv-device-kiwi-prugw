@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2018 Chalmers Revere
+ * Copyright (C) 2020 Björnborg Nguyen
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -17,7 +17,6 @@
  * USA.
  */
 
-#include <math.h>
 #include <algorithm>
 #include <chrono>  //milliseconds
 #include <fstream>
@@ -28,12 +27,10 @@
 #include <fcntl.h>     // for open
 #include <sys/mman.h>  // mmap
 #include <unistd.h>    // for close
-#include <cstring>     // for memset
 
 #include <sys/stat.h>  // checking if file/dir exist
 
 #include "PwmMotors.h"
-#include "cluon-complete.hpp"
 
 PwmMotors::PwmMotors(std::vector<std::string> a_names,
                      std::vector<std::string> a_types,
@@ -42,7 +39,7 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
                      std::vector<std::string> a_maxvals)
     : m_motors(),
       m_mutex(),
-      m_prusharedMemInt32_ptr{NULL},
+      m_prusharedMemInt32_ptr{nullptr},
       m_SERVO_PRU_CH{1}  // PRU1
       ,
       m_SERVO_PRU_FW{"am335x-pru1-rc-servo-fw"}  //"am335x-pru1-rc-servo-fw"
@@ -77,23 +74,43 @@ PwmMotors::PwmMotors(std::vector<std::string> a_names,
         exit(1);
       }
     }
-
     terminatePru();
+    m_prusharedMemInt32_ptr = nullptr;
+    int32_t fileDescriptor = 0;
+
+    // start mmaping shared memory
+    fileDescriptor = open("/dev/mem", O_RDWR | O_SYNC);
+    if (fileDescriptor == -1) {
+      std::cerr << "ERROR: could not open /dev/mem." << std::endl;
+    }
+
+    volatile uint32_t *pru;  // Points to start of PRU memory.
+    pru = static_cast<volatile uint32_t *>(
+        mmap(0, PRU_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor,
+             PRU_ADDR));
+    if (pru == MAP_FAILED) {
+      std::cerr << " ERROR: could not map memory." << std::endl;
+    }
+    close(fileDescriptor);
+
+    m_prusharedMemInt32_ptr =
+        pru + PRU_SHAREDMEM / 4;  // Points to start of shared memory
+    if (m_prusharedMemInt32_ptr == nullptr) {
+      std::cerr << " ERROR: pru shared mem is nullptr." << std::endl;
+    }
+    // std::memset(m_prusharedMemInt32_ptr, 0, SERVO_CHANNELS * 4);
+    for (uint8_t i = 0;
+         i < NUM_SERVO_CHANNELS && m_prusharedMemInt32_ptr != nullptr; i++) {
+      m_prusharedMemInt32_ptr[i] = 42;
+    }
   } else {
     std::cerr << " Invalid number of configurations for pwm motors.\n";
-    exit(1);
   }
 }
 
 void PwmMotors::initialisePru() {
   std::lock_guard<std::mutex> l(m_mutex);
-  int32_t fileDescriptor;
-  volatile uint32_t *pru;  // Points to start of PRU memory.
   struct stat sb;
-
-  // reset memory pointer to NULL so if init fails it doesn't point somewhere
-  // bad
-  m_prusharedMemInt32_ptr = NULL;
 
   // check if firmware exists
   if (stat(("/lib/firmware/" + m_SERVO_PRU_FW).c_str(), &sb) != 0 ||
@@ -103,11 +120,9 @@ void PwmMotors::initialisePru() {
   }
 
   write2file(m_PRU1_STATE, "stop");
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   write2file(m_PRU1_FW, m_SERVO_PRU_FW);
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
   write2file(m_PRU1_STATE, "start");
-  std::this_thread::sleep_for(std::chrono::milliseconds(500));
+  // std::this_thread::sleep_for(std::chrono::milliseconds(250));
 
   std::ifstream fileStatus(m_PRU1_STATE);
   std::string strStatus;
@@ -116,45 +131,36 @@ void PwmMotors::initialisePru() {
     std::cerr << " ERROR code: " << strStatus << std::endl;
     exit(1);
   }
-
-  // start mmaping shared memory
-  fileDescriptor = open("/dev/mem", O_RDWR | O_SYNC);
-  if (fileDescriptor == -1) {
-    std::cerr << " ERROR: could not open /dev/mem." << std::endl;
-    exit(1);
+  for (uint8_t i = 0;
+       i < NUM_SERVO_CHANNELS && m_prusharedMemInt32_ptr != nullptr; i++) {
+    m_prusharedMemInt32_ptr[i] = 42;
   }
 
-  pru = static_cast<volatile uint32_t *>(
-      mmap(0, PRU_LEN, PROT_READ | PROT_WRITE, MAP_SHARED, fileDescriptor,
-           PRU_ADDR));
-  if (pru == MAP_FAILED) {
-    std::cerr << " ERROR: could not map memory." << std::endl;
-    exit(1);
-  }
-  close(fileDescriptor);
-
-  m_prusharedMemInt32_ptr =
-      pru + PRU_SHAREDMEM / 4;  // Points to start of shared memory
-  if (m_prusharedMemInt32_ptr == NULL) {
-    std::cerr << " ERROR: pru shared mem is null." << std::endl;
-    exit(1);
+  while (m_prusharedMemInt32_ptr[0] != 0) {
+    std::clog << "The shared memory with PRU didn't get zeroed out..."
+              << std::endl;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
 
   std::clog << "Successfully initialized servo/esc PRU" << std::endl;
-  // std::memset(m_prusharedMemInt32_ptr, 0, SERVO_CHANNELS * 4);
-  for (uint8_t i = 8; i < NUM_SERVO_CHANNELS; i++) {
-    m_prusharedMemInt32_ptr[i] = 0;
-  }
   m_active = true;
   // powerServoRail(true);
 }
 
 void PwmMotors::terminatePru() {
-  setServoNormalizedAll(0);
+  for (auto motor : m_motors) {
+    // setMotorPower(motor.getChannel(), 0.0f);
+    if (motor.getType() == Motor::MotorType::Servo) {
+      setMotorPower(motor.getChannel(), 0.0f);
+    } else {
+      setMotorPower(motor.getChannel(), 0.5f);
+    }
+  }
   powerServoRail(false);
   std::lock_guard<std::mutex> l(m_mutex);
   write2file(m_PRU1_STATE, "stop");
-  for (uint8_t i = 8; i < NUM_SERVO_CHANNELS; i++) {
+  for (uint8_t i = 0;
+       i < NUM_SERVO_CHANNELS && m_prusharedMemInt32_ptr != nullptr; i++) {
     m_prusharedMemInt32_ptr[i] = 0;
   }
   m_active = false;
@@ -164,7 +170,7 @@ void PwmMotors::terminatePru() {
 PwmMotors::~PwmMotors() {
   saveCalibration();
   terminatePru();
-  m_prusharedMemInt32_ptr = NULL;
+  m_prusharedMemInt32_ptr = nullptr;
 }
 
 void PwmMotors::setMotorPower(uint8_t const &a_ch, float const &a_power) {
@@ -296,7 +302,7 @@ int8_t PwmMotors::setPwmMicroSeconds(uint8_t const &a_ch,
               << ". \n";
     return -2;
   }
-  if (m_prusharedMemInt32_ptr == NULL) {
+  if (m_prusharedMemInt32_ptr == nullptr) {
     std::clog << " ERROR: PRU servo Controller not initialized.\n";
     return -2;
   }
@@ -433,7 +439,7 @@ bool PwmMotors::isIdle() noexcept {
       for (auto motor : m_motors) {
         // setMotorPower(motor.getChannel(), 0.0f);
         if (motor.getType() == Motor::MotorType::Servo) {
-          setMotorPower(motor.getChannel(), 0.0);
+          setMotorPower(motor.getChannel(), 0.0f);
         } else {
           setMotorPower(motor.getChannel(), 0.5f);
         }

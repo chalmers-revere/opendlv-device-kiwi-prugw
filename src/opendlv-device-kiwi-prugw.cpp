@@ -22,7 +22,6 @@
 #include <string>
 #include <thread>
 
-#include "cluon-complete.hpp"
 #include "opendlv-standard-message-set.hpp"
 
 #include "PwmMotors.h"
@@ -153,7 +152,7 @@ int32_t main(int32_t argc, char **argv) {
     if (VERBOSE) {
       VERBOSE = std::stoi(commandlineArguments["verbose"]);
     }
-    float const FREQ = 50.0f;
+    float const FREQ = 10.0f;
 
     std::vector<std::string> names =
         stringtoolbox::split(commandlineArguments["names"], ',');
@@ -187,7 +186,6 @@ int32_t main(int32_t argc, char **argv) {
     // PwmMotors pwmMotors(names, types, channels, offsets, maxvals);
     std::shared_ptr<PwmMotors> pwmMotors =
         std::make_shared<PwmMotors>(names, types, channels, offsets, maxvals);
-
     auto onGroundSteeringRequest{
         [&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope) {
           if (envelope.senderStamp() == 0) {
@@ -238,7 +236,7 @@ int32_t main(int32_t argc, char **argv) {
       // This must be called regularly (>40hz) to keep servos or ESCs awake.
       pwmMotors->isIdle();
       if (*isActive) {
-        //pwmMotors->isIdle();
+        // pwmMotors->isIdle();
         pwmMotors->actuate();
       }
       if (VERBOSE == 1) {

@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2018 Chalmers Revere
+ * Copyright (C) 2020 Björnborg Nguyen
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,54 +13,41 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
+ * USA.
  */
 
 #include "Motor.h"
 
-
-Motor::Motor(std::string const a_name, MotorType const a_type, 
-    uint8_t const a_ch, float const a_offset, float const a_maxval)
-    : m_name(a_name)
-    , m_type(a_type)
-    , m_channel(a_ch)
-    , m_power(a_offset)
-    , m_offset(0)
-    , m_maxval(a_maxval)
-{
+Motor::Motor(std::string const a_name, MotorType const a_type,
+             uint8_t const a_ch, float const a_offset, float const a_maxval)
+    : m_name(a_name),
+      m_type(a_type),
+      m_channel(a_ch),
+      m_power(a_offset),
+      m_offset(0),
+      m_maxval(a_maxval) {
   setOffset(a_offset);
 }
 
-Motor::~Motor()
-{}
+Motor::~Motor() {}
 
-std::string Motor::getName()
-{
-  return m_name;
-}
+std::string Motor::getName() { return m_name; }
 
-Motor::MotorType Motor::getType()
-{
-  return m_type;
-}
+Motor::MotorType Motor::getType() { return m_type; }
 
-uint8_t Motor::getChannel()
-{
-  return m_channel;
-}
+uint8_t Motor::getChannel() { return m_channel; }
 
-float Motor::getPower()
-{
-
+float Motor::getPower() {
   switch (m_type) {
-    case MotorType::Esc :
+    case MotorType::Esc:
       if (m_power > 1.0f) {
         return 1.0f;
       } else if (m_power < 0) {
         return 0.0f;
       }
       break;
-    case MotorType::Servo :
+    case MotorType::Servo:
       if (m_power > 1.5f) {
         return 1.499999f;
       } else if (m_power < -1.5f) {
@@ -73,9 +60,8 @@ float Motor::getPower()
   return m_power;
 }
 
-void Motor::setPower(float const &a_val)
-{
-  if(m_type ==  MotorType::Esc) {
+void Motor::setPower(float const &a_val) {
+  if (m_type == MotorType::Esc) {
     float val = a_val;
     if (val > m_maxval + m_offset) {
       val = m_maxval + m_offset;
@@ -92,10 +78,9 @@ void Motor::setPower(float const &a_val)
   }
 }
 
-void Motor::setOffset(float const &a_val)
-{
+void Motor::setOffset(float const &a_val) {
   switch (m_type) {
-    case MotorType::Esc :
+    case MotorType::Esc:
       if (a_val > 0.8f) {
         m_offset = 0.8f;
       } else if (a_val < -0.2f) {
@@ -103,7 +88,7 @@ void Motor::setOffset(float const &a_val)
       }
       m_offset = a_val;
       break;
-    case MotorType::Servo :
+    case MotorType::Servo:
       if (a_val > 0.3f) {
         m_offset = 0.3f;
       } else if (a_val < -0.3f) {
@@ -116,24 +101,21 @@ void Motor::setOffset(float const &a_val)
   }
 }
 
-float Motor::getOffset()
-{
-  return m_offset;
-}
+float Motor::getOffset() { return m_offset; }
 
-std::string Motor::toString() 
-{
+std::string Motor::toString() {
   std::string type;
   switch (m_type) {
-    case MotorType::Esc :
+    case MotorType::Esc:
       type = "esc";
       break;
-    case MotorType::Servo :
+    case MotorType::Servo:
       type = "servo";
       break;
     default:
       break;
   }
-  return " Name: " + m_name + "   \tType: " + type + "\tChannel: " + std::to_string(m_channel) + "\tPower: " + std::to_string(getPower()) + ".";
+  return " Name: " + m_name + "   \tType: " + type +
+         "\tChannel: " + std::to_string(m_channel) +
+         "\tPower: " + std::to_string(getPower()) + ".";
 }
-

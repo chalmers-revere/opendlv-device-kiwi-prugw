@@ -1,5 +1,5 @@
 /**
- * Copyright (C) 2018 Chalmers Revere
+ * Copyright (C) 2020 Björnborg Nguyen
  *
  * This program is free software; you can redistribute it and/or
  * modify it under the terms of the GNU General Public License
@@ -13,22 +13,21 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+ * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301,
+ * USA.
  */
 
-
 #include <string>
-
-
 
 class Motor {
  public:
   enum MotorType { Servo, Esc };
-  Motor(std::string const, MotorType const, uint8_t const, float const, float const);
+  Motor(std::string const, MotorType const, uint8_t const, float const,
+        float const);
   Motor(Motor const &) = default;
   Motor &operator=(Motor const &) = default;
   virtual ~Motor();
-  
+
   std::string getName();
   MotorType getType();
   uint8_t getChannel();
@@ -38,7 +37,6 @@ class Motor {
   float getOffset();
   std::string toString();
 
-
  private:
   std::string m_name;
   MotorType m_type;
@@ -47,4 +45,3 @@ class Motor {
   float m_offset;
   float m_maxval;
 };
-
