@@ -21,7 +21,7 @@
 #include <sys/stat.h> // checking if file/dir exist
 #include <fstream>
 #include <string>
-
+#include <math.h>
 
 #include "cluon-complete.hpp"
 #include "opendlv-standard-message-set.hpp"
@@ -150,7 +150,7 @@ int32_t main(int32_t argc, char **argv) {
     if (VERBOSE) {
       VERBOSE = std::stoi(commandlineArguments["verbose"]);
     }
-    float const FREQ = 20;
+    float const FREQ = 100;
 
     std::vector<std::string> names = stringtoolbox::split(commandlineArguments["names"],',');
     std::vector<std::string> types = stringtoolbox::split(commandlineArguments["types"],',');
@@ -184,29 +184,85 @@ int32_t main(int32_t argc, char **argv) {
     {
       if (envelope.senderStamp() == 0){
         auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
-        float const groundSteering = gst.groundSteering() / angleConversion;
-        pwmMotors->setMotorPower(1, groundSteering);
-      } else if (envelope.senderStamp() == 9999) {
+        float const groundSteering = gst.groundSteering()/angleConversion;
+
+	/*float thrustersteer = 0.5f;
+	if (groundSteering > 0.2f){
+	  thrustersteer = 0.3f;
+	} else if (groundSteering < -0.2f) {
+	  thrustersteer = 0.7f;
+	}*/
+
+	pwmMotors->setMotorPower(3, groundSteering);
+	pwmMotors->setMotorPower(4, groundSteering);
+	//pwmMotors->setMotorPower(5, thrustersteer);
+	//std::cout << "groundSteering: " << groundSteering << std::endl;
+
+	} else if (envelope.senderStamp() == 9999) {
         auto const gst = cluon::extractMessage<opendlv::proxy::GroundSteeringRequest>(std::move(envelope));
         float const groundSteering = gst.groundSteering();
-        pwmMotors->setMotorOffset(1, groundSteering);
+        pwmMotors->setMotorOffset(3, groundSteering);
+	pwmMotors->setMotorOffset(4, groundSteering);
       }
     }};
     auto onPedalPositionRequest{[&pwmMotors](cluon::data::Envelope &&envelope)
     {
-      opendlv::proxy::PedalPositionRequest const ppr = cluon::extractMessage<opendlv::proxy::PedalPositionRequest>(std::move(envelope));
-      float val = (ppr.position()+1)/2.0f;
-      if (val > 1.0f) {
-        val = 1.0f;
-      } else if (val < 0.1f){
-        val = 0.1f;
-      }
-      pwmMotors->setMotorPower(2, val);
+	opendlv::proxy::PedalPositionRequest const ppr = cluon::extractMessage<opendlv::proxy::PedalPositionRequest>(std::move(envelope));
+	float val = (ppr.position()+1)/2.0f;
+	if (val > 1.0f) {
+	  val = 1.0f;
+	} else if (val < 0.1f){
+	  val = 0.1f;
+	}
+
+	//std::cout << "Motor val: " << val << std::endl;
+
+	pwmMotors->setMotorPower(2, val);
+	pwmMotors->setMotorPower(1, val);
+    }};
+
+    auto onActuationRequest{[&pwmMotors, &angleConversion](cluon::data::Envelope &&envelope)
+    {
+	opendlv::proxy::ActuationRequest const actdata = cluon::extractMessage<opendlv::proxy::ActuationRequest>(std::move(envelope));
+
+	//float actval = (actdata.acceleration()+1)/2.0f;
+
+	float actval = 0.5f;
+	if (actdata.acceleration() > 2.5f) {
+	  actval = actval + actdata.acceleration()/100.0f;
+	} else if (actdata.acceleration() < -0.5f){
+	  actval = actval + actdata.acceleration()/20.0f;
+	}
+
+	float const actsteering = actdata.steering() / 3*(angleConversion);
+	/*float actthruster = 0.5f;
+	if (actsteering > 0.3f){
+	  actthruster = 0.7f;
+	} else if (actsteering < -0.3f) {
+	  actthruster = 0.3f;
+	}*/
+
+
+	if (actval > 0.9f){
+	   actval = 0.8f;
+	} else if (actval < 0.1f){
+	    actval = 0.2f;
+	}
+
+	//std::cout << "Gamepad spd value: " << actval << std::endl;
+	//std::cout << "Gamepad Steering: " << actsteering << std::endl;
+
+	pwmMotors->setMotorPower(1, actval);
+	pwmMotors->setMotorPower(2, actval);
+	pwmMotors->setMotorPower(3, actsteering);
+	pwmMotors->setMotorPower(4, actsteering);
+	//pwmMotors->setMotorPower(5, actthruster);
     }};
 
     cluon::OD4Session od4{static_cast<uint16_t>(std::stoi(commandlineArguments["cid"]))};
     od4.dataTrigger(opendlv::proxy::GroundSteeringRequest::ID(), onGroundSteeringRequest);
     od4.dataTrigger(opendlv::proxy::PedalPositionRequest::ID(), onPedalPositionRequest);
+    od4.dataTrigger(opendlv::proxy::ActuationRequest::ID(), onActuationRequest);
 
     if (VERBOSE == 2) {
       initscr();
@@ -214,7 +270,7 @@ int32_t main(int32_t argc, char **argv) {
     std::shared_ptr<std::mutex> mtx = std::make_shared<std::mutex>();
     std::shared_ptr<bool> isActive = std::make_shared<bool>(false);
     std::shared_ptr<bool> programIsRunning = std::make_shared<bool>(true);
-  
+
     auto atFrequency{[&pwmMotors, &VERBOSE, &mtx, &isActive]() -> bool
     {
       std::lock_guard<std::mutex> lock(*mtx);
